@@ -2004,6 +2004,7 @@
       </button>
       <button class="tab-btn" id="tab-messages" onclick="switchTab('messages')" style="position:relative">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span id="msg-tab-badge" style="visibility:hidden;position:absolute;top:4px;right:calc(50% - 20px);background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 3px;line-height:16px;text-align:center;display:inline-block"></span>
         Messages
       </button>
       <button class="tab-btn" id="tab-market" onclick="switchTab('market')">
@@ -3451,9 +3452,34 @@ function emailKey(email) {
   return email.replace(/\./g, '_dot_').replace(/@/g, '_at_');
 }
 
-// No global badge needed — unread counts show per-conversation in the list
+// Persistent listener — updates the Messages tab badge count
 function startUnreadListener() {
-  // Intentionally empty — unread counts are shown per chat in loadConversations
+  if (!fbConfigured || !db || !user.email) return;
+  if (unreadListenerUnsub) unreadListenerUnsub();
+  var myKey = emailKey(user.email);
+
+  unreadListenerUnsub = db.collection('conversations')
+    .where('members', 'array-contains', user.email)
+    .onSnapshot(function(snap) {
+      var total = 0;
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var topKey = 'unread.' + myKey;
+        var count = 0;
+        if (d[topKey] && typeof d[topKey] === 'number') count = d[topKey];
+        else if (d.unread && d.unread[myKey]) count = d.unread[myKey];
+        total += count;
+      });
+      var badge = document.getElementById('msg-tab-badge');
+      if (badge) {
+        if (total > 0) {
+          badge.textContent = total > 9 ? '9+' : total;
+          badge.style.visibility = 'visible';
+        } else {
+          badge.style.visibility = 'hidden';
+        }
+      }
+    }, function() {});
 }
 
 function openMessenger() {
@@ -3534,21 +3560,27 @@ function openChat(friendEmail, friendName, friendUsername) {
   var msgArea = document.getElementById('chat-messages');
   msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
 
-  // Clear MY unread count when opening chat
-  // Use set+merge with the encoded key as a plain object key (not dot notation)
-  var clearData = { unread: {} };
-  clearData.unread[emailKey(user.email)] = 0;
-  // Also clear the top-level dot field format
+  var myKey = emailKey(user.email);
+  var unreadField = 'unread.' + myKey;
+  var chatUnreadCount = 0;
+
+  // Get current unread count before clearing, so we know where to scroll
+  db.collection('conversations').doc(currentChatId).get().then(function(doc) {
+    if (doc.exists) {
+      var d = doc.data();
+      if (d[unreadField] && typeof d[unreadField] === 'number') chatUnreadCount = d[unreadField];
+      else if (d.unread && d.unread[myKey]) chatUnreadCount = d.unread[myKey];
+    }
+  });
+
+  // Clear MY unread
   var clearUpdate = {};
-  clearUpdate['unread.' + emailKey(user.email)] = 0;
+  clearUpdate[unreadField] = 0;
   db.collection('conversations').doc(currentChatId)
-    .set({ unread: clearData.unread }, { merge: true })
-    .catch(function() {});
-  db.collection('conversations').doc(currentChatId)
-    .update(clearUpdate)
-    .catch(function() {});
+    .update(clearUpdate).catch(function() {});
 
   // Real-time listener for messages
+  var firstLoad = true;
   if (msgUnsubscribe) msgUnsubscribe();
   msgUnsubscribe = db.collection('conversations').doc(currentChatId)
     .collection('messages')
@@ -3561,18 +3593,47 @@ function openChat(friendEmail, friendName, friendUsername) {
         return;
       }
       msgArea.innerHTML = '';
-      snap.forEach(function(doc) {
-        var m = doc.data();
+      var msgs = [];
+      snap.forEach(function(doc) { msgs.push(doc.data()); });
+      var total = msgs.length;
+      var firstUnreadEl = null;
+
+      msgs.forEach(function(m, i) {
         var mine = m.sender === user.email;
         var time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
         var wrap = document.createElement('div');
         wrap.className = 'msg-bubble-wrap ' + (mine ? 'mine' : 'theirs');
+
+        // Mark the first unread message divider
+        var isFirstUnread = firstLoad && chatUnreadCount > 0 && i === total - chatUnreadCount;
+        if (isFirstUnread) {
+          var divider = document.createElement('div');
+          divider.id = 'first-unread-divider';
+          divider.style.cssText = 'text-align:center;font-size:11px;color:var(--red);font-weight:600;padding:6px 0;margin:4px 0;border-top:1px solid var(--red);opacity:0.7';
+          divider.textContent = chatUnreadCount + ' unread message' + (chatUnreadCount > 1 ? 's' : '');
+          msgArea.appendChild(divider);
+          firstUnreadEl = divider;
+        }
+
         wrap.innerHTML =
           '<div class="msg-bubble ' + (mine ? 'mine' : 'theirs') + '">' + escapeHtml(m.text) + '</div>' +
           '<div class="msg-time">' + time + '</div>';
         msgArea.appendChild(wrap);
       });
-      msgArea.scrollTop = msgArea.scrollHeight;
+
+      // On first load: scroll to first unread divider, otherwise scroll to bottom
+      if (firstLoad) {
+        firstLoad = false;
+        setTimeout(function() {
+          if (firstUnreadEl) {
+            firstUnreadEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            msgArea.scrollTop = msgArea.scrollHeight;
+          }
+        }, 50);
+      } else {
+        msgArea.scrollTop = msgArea.scrollHeight;
+      }
     }, function() {});
 
   setTimeout(function() { document.getElementById('chat-input').focus(); }, 100);
