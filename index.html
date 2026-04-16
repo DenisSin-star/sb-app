@@ -1500,7 +1500,7 @@
   .conv-name { font-size: 14px; font-weight: 600; }
   .conv-preview { font-size: 13px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
   .conv-time { font-size: 11px; color: var(--text3); margin-left: auto; flex-shrink: 0; }
-  .conv-unread { background: var(--blue); color: #fff; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; margin-left: auto; }
+  .conv-unread { background: var(--red); color: #fff; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; margin-left: auto; }
 
   @keyframes shake {
     0%,100% { transform: translateX(0); }
@@ -1704,9 +1704,8 @@
     <div class="topbar">
       <div class="topbar-logo">sb</div>
       <div class="topbar-actions">
-        <button class="icon-btn" onclick="switchTab('messages')" title="Messages" id="msg-topbar-btn" style="position:relative">
+        <button class="icon-btn" onclick="switchTab('messages')" title="Messages" id="msg-topbar-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <span id="msg-topbar-badge" style="visibility:hidden;position:absolute;top:3px;right:3px;width:9px;height:9px;background:var(--red);border-radius:50%;border:1.5px solid var(--surface);display:block"></span>
         </button>
         <button class="icon-btn" onclick="showToast('No new notifications')" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -2005,7 +2004,6 @@
       </button>
       <button class="tab-btn" id="tab-messages" onclick="switchTab('messages')" style="position:relative">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span id="msg-tab-badge" style="visibility:hidden;position:absolute;top:4px;right:calc(50% - 20px);background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;line-height:1">0</span>
         Messages
       </button>
       <button class="tab-btn" id="tab-market" onclick="switchTab('market')">
@@ -3453,52 +3451,9 @@ function emailKey(email) {
   return email.replace(/\./g, '_dot_').replace(/@/g, '_at_');
 }
 
-// Start a persistent real-time listener for unread counts — runs on all tabs
+// No global badge needed — unread counts show per-conversation in the list
 function startUnreadListener() {
-  if (!fbConfigured || !db || !user.email) return;
-  if (unreadListenerUnsub) unreadListenerUnsub();
-
-  unreadListenerUnsub = db.collection('conversations')
-    .where('members', 'array-contains', user.email)
-    .onSnapshot(function(snap) {
-      var totalUnread = 0;
-      var myKey = emailKey(user.email); // e.g. d14886399_at_gmail_dot_com
-
-      snap.forEach(function(doc) {
-        var d = doc.data();
-        var count = 0;
-
-        // The key is stored as a TOP-LEVEL field "unread.d14886399_at_gmail_dot_com"
-        // Firestore returns this as d["unread.d14886399_at_gmail_dot_com"]
-        var topLevelKey = 'unread.' + myKey;
-        if (d[topLevelKey] && typeof d[topLevelKey] === 'number') {
-          count = d[topLevelKey];
-        }
-
-        // Also check nested unread object (old format)
-        if (!count && d.unread && typeof d.unread === 'object') {
-          count = d.unread[myKey] || 0;
-        }
-
-        console.log('conv', doc.id, 'count:', count, 'topKey:', topLevelKey, 'value:', d[topLevelKey]);
-        totalUnread += count;
-      });
-
-      console.log('Total unread:', totalUnread);
-      var countStr = totalUnread > 9 ? '9+' : String(totalUnread);
-
-      var badge1 = document.getElementById('msg-tab-badge');
-      if (badge1) {
-        badge1.textContent = countStr;
-        badge1.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
-        console.log('badge1:', badge1.style.visibility, countStr);
-      }
-
-      var badge2 = document.getElementById('msg-topbar-badge');
-      if (badge2) {
-        badge2.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
-      }
-    }, function(err) { console.error('unread listener error:', err); });
+  // Intentionally empty — unread counts are shown per chat in loadConversations
 }
 
 function openMessenger() {
@@ -3509,6 +3464,7 @@ function openMessenger() {
 function loadConversations() {
   if (!fbConfigured || !db || !user.email) return;
   var list = document.getElementById('conversations-list');
+  var myKey = emailKey(user.email);
 
   if (convUnsubscribe) convUnsubscribe();
 
@@ -3533,7 +3489,15 @@ function loadConversations() {
         var friendUser  = d.usernames ? (d.usernames[friendEmail] || '')          : '';
         var preview  = d.lastMsg || '';
         var ts       = d.lastTs ? new Date(d.lastTs).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
-        var myUnread = d.unread ? (d.unread[user.email] || 0) : 0;
+
+        // Read unread count — check top-level encoded key first, then nested
+        var myUnread = 0;
+        var topKey = 'unread.' + myKey;
+        if (d[topKey] && typeof d[topKey] === 'number') {
+          myUnread = d[topKey];
+        } else if (d.unread && d.unread[myKey]) {
+          myUnread = d.unread[myKey];
+        }
 
         var div = document.createElement('div');
         div.className = 'conv-item';
@@ -3544,8 +3508,10 @@ function loadConversations() {
         div.innerHTML =
           '<div class="conv-av">' + getInitials(friendName) + '</div>' +
           '<div style="flex:1;min-width:0">' +
-            '<div class="conv-name">' + friendName + '</div>' +
-            '<div class="conv-preview">' + (d.lastSender === user.email ? 'You: ' : '') + preview + '</div>' +
+            '<div class="conv-name" style="font-weight:' + (myUnread > 0 ? '700' : '600') + '">' + friendName + '</div>' +
+            '<div class="conv-preview" style="font-weight:' + (myUnread > 0 ? '600' : '400') + ';color:' + (myUnread > 0 ? 'var(--text)' : 'var(--text3)') + '">' +
+              (d.lastSender === user.email ? 'You: ' : '') + preview +
+            '</div>' +
           '</div>' +
           (myUnread > 0
             ? '<div class="conv-unread">' + (myUnread > 9 ? '9+' : myUnread) + '</div>'
@@ -3569,9 +3535,18 @@ function openChat(friendEmail, friendName, friendUsername) {
   msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
 
   // Clear MY unread count when opening chat
+  // Use set+merge with the encoded key as a plain object key (not dot notation)
+  var clearData = { unread: {} };
+  clearData.unread[emailKey(user.email)] = 0;
+  // Also clear the top-level dot field format
   var clearUpdate = {};
   clearUpdate['unread.' + emailKey(user.email)] = 0;
-  db.collection('conversations').doc(currentChatId).update(clearUpdate).catch(function() {});
+  db.collection('conversations').doc(currentChatId)
+    .set({ unread: clearData.unread }, { merge: true })
+    .catch(function() {});
+  db.collection('conversations').doc(currentChatId)
+    .update(clearUpdate)
+    .catch(function() {});
 
   // Real-time listener for messages
   if (msgUnsubscribe) msgUnsubscribe();
@@ -3607,9 +3582,14 @@ function closeChatView() {
   if (msgUnsubscribe) { msgUnsubscribe(); msgUnsubscribe = null; }
   // Clear my unread for this chat when leaving
   if (currentChatId) {
-    var clearMyUnread = {};
-    clearMyUnread['unread.' + emailKey(user.email)] = 0;
-    db.collection('conversations').doc(currentChatId).update(clearMyUnread).catch(function() {});
+    var clearData = { unread: {} };
+    clearData.unread[emailKey(user.email)] = 0;
+    var clearUpdate = {};
+    clearUpdate['unread.' + emailKey(user.email)] = 0;
+    db.collection('conversations').doc(currentChatId)
+      .set({ unread: clearData.unread }, { merge: true }).catch(function() {});
+    db.collection('conversations').doc(currentChatId)
+      .update(clearUpdate).catch(function() {});
   }
   currentChatId = null;
   currentChatFriend = null;
@@ -3630,39 +3610,55 @@ function sendMessage() {
   var chatId = currentChatId;
   var recipientEmail = currentChatFriend.email;
   var recipientKey = emailKey(recipientEmail);
+  var unreadField = 'unread.' + recipientKey;
 
-  // Write the message
+  // Write message
   db.collection('conversations').doc(chatId)
     .collection('messages').add({ text: text, sender: user.email, ts: now })
     .catch(function(e) { console.error('msg write failed', e); });
 
-  // Read current unread count, increment it, write back
+  // Use transaction to atomically increment unread count
   var convRef = db.collection('conversations').doc(chatId);
-  convRef.get().then(function(doc) {
-    var data = doc.exists ? doc.data() : {};
-    var currentUnread = (data.unread && data.unread[recipientKey]) ? data.unread[recipientKey] : 0;
-    var newUnread = currentUnread + 1;
+  db.runTransaction(function(tx) {
+    return tx.get(convRef).then(function(doc) {
+      var data = doc.exists ? doc.data() : {};
 
-    var updateData = {
-      members:    [user.email, recipientEmail],
-      lastMsg:    text,
-      lastSender: user.email,
-      lastTs:     now,
-      names:      {},
-      usernames:  {}
-    };
-    updateData.names[user.email]         = user.name;
-    updateData.names[recipientEmail]     = currentChatFriend.name;
-    updateData.usernames[user.email]     = user.username || '';
-    updateData.usernames[recipientEmail] = currentChatFriend.username || '';
+      // Get current unread — check top-level dot field first, then nested
+      var current = 0;
+      if (data[unreadField] && typeof data[unreadField] === 'number') {
+        current = data[unreadField];
+      } else if (data.unread && data.unread[recipientKey]) {
+        current = data.unread[recipientKey];
+      }
 
-    // Use encoded key — dot notation in Firestore field paths causes issues
-    var unreadField = 'unread.' + recipientKey;
-    updateData[unreadField] = newUnread;
+      var updateData = {
+        lastMsg:    text,
+        lastSender: user.email,
+        lastTs:     now
+      };
+      updateData[unreadField] = current + 1;
 
-    console.log('Writing unread field:', unreadField, '=', newUnread);
-    return convRef.set(updateData, { merge: true });
-  }).catch(function(e) { console.error('conv update failed', e); });
+      // Set metadata on first message
+      if (!doc.exists) {
+        updateData.members = [user.email, recipientEmail];
+        updateData.names = {};
+        updateData.names[user.email] = user.name;
+        updateData.names[recipientEmail] = currentChatFriend.name;
+        updateData.usernames = {};
+        updateData.usernames[user.email] = user.username || '';
+        updateData.usernames[recipientEmail] = currentChatFriend.username || '';
+        tx.set(convRef, updateData, { merge: true });
+      } else {
+        tx.set(convRef, updateData, { merge: true });
+      }
+    });
+  }).catch(function(e) {
+    // Fallback: just write without transaction
+    var fallback = { lastMsg: text, lastSender: user.email, lastTs: now };
+    fallback[unreadField] = 1;
+    convRef.set(fallback, { merge: true }).catch(function(){});
+    console.error('transaction failed, used fallback', e);
+  });
 }
 
 function chatKeydown(e) {
