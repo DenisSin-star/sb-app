@@ -1469,7 +1469,7 @@
           <label>Password</label>
           <input class="field" id="reg-pass" type="password" placeholder="Minimum 6 characters" autocomplete="new-password">
         </div>
-        <button class="btn-primary" onclick="register()">Create account</button>
+        <button class="btn-primary" id="reg-btn" onclick="register()">Create account</button>
         <div class="auth-divider">or</div>
         <button class="btn-ghost" onclick="showLogin()">Log in to existing account</button>
       </div>
@@ -1976,29 +1976,32 @@ function sanitizeUsername(input) {
 
 function register() {
   clearError();
-  var name = document.getElementById('reg-name').value.trim();
+  var name     = document.getElementById('reg-name').value.trim();
   var username = document.getElementById('reg-username').value.trim().toLowerCase();
-  var email = document.getElementById('reg-email').value.trim();
-  var pass = document.getElementById('reg-pass').value;
+  var email    = document.getElementById('reg-email').value.trim().toLowerCase();
+  var pass     = document.getElementById('reg-pass').value;
 
-  if (!name) { showError('Please enter your full name.'); return; }
+  if (!name)     { showError('Please enter your full name.'); return; }
   if (!username) { showError('Please choose a username.'); return; }
   if (username.length < 3) { showError('Username must be at least 3 characters.'); return; }
-  if (!/^[a-z0-9_]+$/.test(username)) { showError('Username can only contain lowercase letters, numbers and underscores.'); return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { showError('Username: lowercase letters, numbers and underscores only.'); return; }
   if (!email || !email.includes('@') || !email.includes('.')) { showError('Please enter a valid email address.'); return; }
   if (pass.length < 6) { showError('Password must be at least 6 characters.'); return; }
 
-  // Check email already registered
-  var alreadyEmail = registeredUsers.find(function(u) { return u.email === email; });
-  if (alreadyEmail) { showError('An account with this email already exists. Please log in.'); return; }
+  var btn = document.getElementById('reg-btn');
+  if (btn) { btn.textContent = 'Checking…'; btn.disabled = true; }
 
-  // Check username taken
-  var alreadyUser = registeredUsers.find(function(u) { return u.username === username; });
-  if (alreadyUser) { showError('Username @' + username + ' is already taken. Please choose another.'); return; }
-
-  pendingUser = { name: name, username: username, email: email, password: pass };
-  sendVerificationCode(email);
-  showVerifyScreen(email);
+  // Check Firebase directly — ignore stale localStorage
+  loadUserFromFirebase(email, function(existing) {
+    if (btn) { btn.textContent = 'Create account'; btn.disabled = false; }
+    if (existing) {
+      showError('An account with this email already exists. Please log in.');
+      return;
+    }
+    pendingUser = { name: name, username: username, email: email, password: pass };
+    sendVerificationCode(email);
+    showVerifyScreen(email);
+  });
 }
 
 function sendVerificationCode(email) {
@@ -2869,8 +2872,11 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// On page load — auto-login if session exists
+// On page load — clear stale localStorage data and auto-login if session exists
 (function() {
+  // Wipe old registeredUsers list from localStorage — Firebase is the source of truth now
+  try { localStorage.removeItem('sb_registered'); } catch(e) {}
+
   loadUserData();
   try {
     var session = localStorage.getItem('sb_session');
