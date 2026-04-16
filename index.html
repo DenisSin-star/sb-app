@@ -1,0 +1,2669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sb — social</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue: #1a56db;
+    --blue-light: #e8f0fe;
+    --blue-dark: #0f3fa0;
+    --purple: #7c3aed;
+    --purple-light: #f3e8ff;
+    --red: #e2443a;
+    --green: #059669;
+    --amber: #d97706;
+    --bg: #f0f2f5;
+    --surface: #ffffff;
+    --surface2: #f7f8fa;
+    --border: #e4e6eb;
+    --text: #1c1e21;
+    --text2: #65676b;
+    --text3: #8a8d91;
+    --shadow: 0 1px 3px rgba(0,0,0,0.12);
+    --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ===== LAYOUT ===== */
+  #root {
+    max-width: 500px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+  }
+
+  /* ===== AUTH ===== */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+    background: linear-gradient(160deg, #0f3fa0 0%, #1a56db 45%, #7c3aed 100%);
+  }
+
+  .auth-card {
+    background: var(--surface);
+    border-radius: var(--radius-xl);
+    padding: 36px 28px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .auth-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 52px;
+    font-weight: 800;
+    color: var(--blue);
+    text-align: center;
+    letter-spacing: -3px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .auth-tagline {
+    text-align: center;
+    color: var(--text2);
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+
+  .auth-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .field-group {
+    margin-bottom: 14px;
+  }
+
+  .field-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+
+  .field {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .field:focus {
+    border-color: var(--blue);
+    background: var(--surface);
+  }
+
+  .auth-error {
+    background: #fff1f0;
+    border: 1px solid #ffc9c7;
+    color: var(--red);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    margin-bottom: 14px;
+    display: none;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-bottom: 10px;
+  }
+
+  .btn-primary:hover { background: var(--blue-dark); }
+  .btn-primary:active { transform: scale(0.99); }
+
+  .btn-ghost {
+    width: 100%;
+    padding: 11px;
+    background: transparent;
+    color: var(--blue);
+    border: 1.5px solid var(--blue);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-ghost:hover { background: var(--blue-light); }
+
+  .auth-divider {
+    text-align: center;
+    color: var(--text3);
+    font-size: 13px;
+    margin: 14px 0;
+    position: relative;
+  }
+
+  .auth-divider::before,
+  .auth-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .auth-divider::before { left: 0; }
+  .auth-divider::after { right: 0; }
+
+  /* ===== MAIN APP ===== */
+  #app {
+    display: none;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .topbar-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--blue);
+    letter-spacing: -2px;
+  }
+
+  .topbar-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: background 0.2s;
+    color: var(--text);
+  }
+
+  .icon-btn:hover { background: var(--border); }
+
+  /* BOTTOM TABS */
+  .bottom-tabs {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 500px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 100;
+    height: 60px;
+  }
+
+  .tab-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text3);
+    font-size: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    transition: color 0.15s;
+    padding: 0;
+  }
+
+  .tab-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .tab-btn.active {
+    color: var(--blue);
+  }
+
+  .tab-btn.active svg {
+    stroke-width: 2.4;
+  }
+
+  /* SCREENS */
+  .screen {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .screen.active {
+    display: flex;
+  }
+
+  /* ===== FEED ===== */
+  .stories-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .stories-bar::-webkit-scrollbar { display: none; }
+
+  .story-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .story-ring {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    padding: 2.5px;
+    background: conic-gradient(#f09433, #e6683c, #dc2743, #bc1888, #f09433);
+    position: relative;
+  }
+
+  .story-ring.unseen {
+    background: conic-gradient(#f09433, #e6683c, #dc2743, #bc1888, #f09433);
+  }
+
+  .story-ring.seen {
+    background: var(--border);
+  }
+
+  .story-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2.5px solid var(--surface);
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    overflow: hidden;
+  }
+
+  .story-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+
+  .story-add-ring {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 2px dashed var(--blue);
+    background: var(--blue-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--blue);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+
+  .story-add-ring:hover { background: #d0e4fd; }
+
+  .story-name {
+    font-size: 11px;
+    color: var(--text2);
+    max-width: 62px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* COMPOSER */
+  .composer-card {
+    background: var(--surface);
+    margin: 12px 12px 0;
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .composer-top {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .composer-av {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .composer-av img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+
+  .composer-input {
+    flex: 1;
+    border: 1.5px solid var(--border);
+    border-radius: 22px;
+    padding: 9px 16px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    resize: none;
+    min-height: 42px;
+    max-height: 120px;
+    transition: border-color 0.2s;
+    line-height: 1.5;
+  }
+
+  .composer-input:focus {
+    border-color: var(--blue);
+    background: var(--surface);
+  }
+
+  .composer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .composer-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .composer-action-btn:hover { background: var(--surface2); }
+  .composer-action-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  .btn-post {
+    padding: 8px 20px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .btn-post:hover { background: var(--blue-dark); }
+  .btn-post:active { transform: scale(0.97); }
+
+  /* POST CARDS */
+  .post-card {
+    background: var(--surface);
+    margin: 10px 12px 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .post-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px 8px;
+  }
+
+  .post-av {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    flex-shrink: 0;
+  }
+
+  .post-meta { flex: 1; }
+  .post-name { font-size: 14px; font-weight: 600; }
+  .post-time { font-size: 12px; color: var(--text3); }
+
+  .post-text {
+    padding: 0 14px 10px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .post-image {
+    width: 100%;
+    max-height: 300px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .post-actions {
+    display: flex;
+    border-top: 1px solid var(--border);
+    padding: 4px 8px;
+  }
+
+  .post-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 4px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .post-action-btn:hover { background: var(--surface2); }
+  .post-action-btn.liked { color: var(--red); }
+  .post-action-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* ===== FRIENDS ===== */
+  .screen-header {
+    background: var(--surface);
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .screen-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 22px;
+    padding: 8px 14px;
+    transition: border-color 0.2s;
+  }
+
+  .search-box:focus-within { border-color: var(--blue); }
+
+  .search-box svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text3);
+    flex-shrink: 0;
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .search-box input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    outline: none;
+  }
+
+  .section-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 14px 16px 6px;
+  }
+
+  .friend-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .friend-item:hover { background: var(--surface2); }
+
+  .friend-av {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .friend-info { flex: 1; min-width: 0; }
+  .friend-name { font-size: 14px; font-weight: 600; }
+  .friend-sub { font-size: 12px; color: var(--text3); }
+
+  .btn-add {
+    padding: 7px 14px;
+    background: var(--blue-light);
+    color: var(--blue);
+    border: none;
+    border-radius: 20px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .btn-add:hover { background: #d0e4fd; }
+
+  .btn-sent {
+    padding: 7px 14px;
+    background: var(--surface2);
+    color: var(--text3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: default;
+    flex-shrink: 0;
+  }
+
+  .btn-accept {
+    padding: 7px 14px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+
+  .btn-accept:hover { background: var(--blue-dark); }
+
+  .btn-decline {
+    padding: 7px 14px;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+
+  .no-results {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--text3);
+    font-size: 14px;
+  }
+
+  /* ===== MARKET ===== */
+  .market-hero {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
+    padding: 20px 16px;
+    color: #fff;
+  }
+
+  .market-hero h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .market-hero p { font-size: 13px; opacity: 0.85; }
+
+  .wallet-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(4px);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 12px;
+  }
+
+  .market-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px 16px 10px;
+    color: var(--text);
+  }
+
+  .nft-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 12px 12px;
+  }
+
+  .nft-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .nft-thumb {
+    height: 100px;
+    background: linear-gradient(135deg, var(--blue-light) 0%, var(--purple-light) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+  }
+
+  .nft-body { padding: 10px 10px 12px; }
+  .nft-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .nft-price { font-size: 12px; color: var(--blue); font-weight: 500; margin-bottom: 8px; }
+
+  .btn-buy-nft {
+    width: 100%;
+    padding: 7px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 5px;
+    transition: background 0.2s;
+  }
+
+  .btn-buy-nft:hover { background: var(--blue-dark); }
+
+  .btn-gift-nft {
+    width: 100%;
+    padding: 7px;
+    background: transparent;
+    color: var(--purple);
+    border: 1.5px solid var(--purple);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-gift-nft:hover { background: var(--purple-light); }
+
+  .ticket-section {
+    background: var(--surface);
+    margin: 0 12px 12px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+
+  .ticket-section h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .ticket-packs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .ticket-pack {
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .ticket-pack:hover { border-color: var(--blue); background: var(--blue-light); }
+  .ticket-pack.selected { border-color: var(--blue); background: var(--blue-light); }
+
+  .pack-icon { font-size: 22px; margin-bottom: 4px; }
+  .pack-amount { font-size: 13px; font-weight: 700; color: var(--text); }
+  .pack-price { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  .btn-pay {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .btn-pay:hover { opacity: 0.9; }
+  .btn-pay:active { transform: scale(0.99); }
+
+  /* ===== SAVED ===== */
+  .saved-item {
+    background: var(--surface);
+    margin: 10px 12px 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+
+  .saved-from {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 5px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .saved-from svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .saved-text { font-size: 14px; color: var(--text); line-height: 1.5; }
+
+  .note-composer {
+    margin: 12px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+
+  .note-composer textarea {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    resize: none;
+    height: 80px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+
+  .note-composer textarea:focus {
+    border-color: var(--blue);
+    background: var(--surface);
+  }
+
+  /* ===== PROFILE ===== */
+  .profile-cover {
+    height: 120px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+  }
+
+  .profile-main {
+    background: var(--surface);
+    padding: 0 16px 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .profile-pic-wrap {
+    margin-top: -38px;
+    display: inline-block;
+    position: relative;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+
+  .profile-pic {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    border: 3px solid var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--blue);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .profile-pic img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-pic-edit {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 24px;
+    height: 24px;
+    background: var(--blue);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    border: 2px solid var(--surface);
+  }
+
+  .profile-name {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'Syne', sans-serif;
+    margin-bottom: 3px;
+  }
+
+  .profile-email {
+    font-size: 13px;
+    color: var(--text3);
+    margin-bottom: 14px;
+  }
+
+  .profile-stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 14px;
+  }
+
+  .stat-item { text-align: center; }
+  .stat-num { font-size: 18px; font-weight: 700; color: var(--text); }
+  .stat-label { font-size: 12px; color: var(--text3); }
+
+  .nft-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--purple-light);
+    color: var(--purple);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+  }
+
+  .profile-edit-section {
+    background: var(--surface);
+    margin: 12px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+
+  .profile-edit-section h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .btn-logout {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 0 12px 12px;
+    padding: 11px;
+    background: transparent;
+    color: var(--red);
+    border: 1.5px solid var(--red);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-align: center;
+  }
+
+  .btn-logout:hover { background: #fff1f0; }
+
+  /* ===== STORY VIEWER ===== */
+  .story-viewer {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 500;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 500px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .sv-progress-bar {
+    position: absolute;
+    top: 14px;
+    left: 12px;
+    right: 12px;
+    height: 3px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .sv-progress-fill {
+    height: 100%;
+    background: #fff;
+    border-radius: 2px;
+    width: 0;
+    transition: none;
+  }
+
+  .sv-author {
+    position: absolute;
+    top: 28px;
+    left: 16px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+
+  .sv-close {
+    position: absolute;
+    top: 20px;
+    right: 14px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .sv-content {
+    max-width: 90%;
+    max-height: 70vh;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sv-content img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 12px;
+  }
+
+  .sv-emoji { font-size: 80px; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 400;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    max-width: 500px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .modal-box {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 24px 20px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .modal-box h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .modal-box p {
+    font-size: 14px;
+    color: var(--text2);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .modal-btns {
+    display: flex;
+    gap: 10px;
+  }
+
+  .modal-btns button {
+    flex: 1;
+    padding: 11px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+  }
+
+  .modal-cancel {
+    background: var(--surface2);
+    color: var(--text2);
+  }
+
+  .modal-confirm {
+    background: var(--blue);
+    color: #fff;
+  }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed;
+    bottom: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(28, 30, 33, 0.9);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 22px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 600;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+    white-space: nowrap;
+    max-width: 90%;
+    text-align: center;
+  }
+
+  .toast.show { opacity: 1; }
+
+  /* ===== UTILITIES ===== */
+  .scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 16px;
+  }
+
+  .scroll-area::-webkit-scrollbar { width: 4px; }
+  .scroll-area::-webkit-scrollbar-track { background: transparent; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .hidden { display: none !important; }
+
+  /* Photo post preview */
+  .photo-preview {
+    margin: 8px 0 0 50px;
+    position: relative;
+    display: none;
+  }
+
+  .photo-preview img {
+    max-height: 160px;
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+    display: block;
+    object-fit: cover;
+  }
+
+  .photo-preview-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 50%;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  /* ===== VERIFICATION CODE ===== */
+  .verify-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--blue-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 28px;
+  }
+
+  .verify-email-highlight {
+    display: inline-block;
+    background: var(--blue-light);
+    color: var(--blue);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    word-break: break-all;
+    margin: 4px 0 16px;
+  }
+
+  .code-inputs {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin: 20px 0 6px;
+  }
+
+  .code-input {
+    width: 44px;
+    height: 52px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    caret-color: var(--blue);
+  }
+
+  .code-input:focus {
+    border-color: var(--blue);
+    background: var(--surface);
+  }
+
+  .code-input.filled {
+    border-color: var(--blue);
+    background: var(--blue-light);
+    color: var(--blue);
+  }
+
+  .resend-row {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 14px;
+  }
+
+  .resend-row span {
+    color: var(--blue);
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .resend-row span:hover { text-decoration: underline; }
+
+  .resend-row span.disabled {
+    color: var(--text3);
+    cursor: default;
+    text-decoration: none;
+  }
+
+  /* dev-mode code banner */
+  .dev-code-banner {
+    background: #fffbeb;
+    border: 1.5px dashed #fcd34d;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #92400e;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .resend-row span.disabled {
+    color: var(--text3);
+    cursor: default;
+    text-decoration: none;
+  }
+
+  /* dev-mode code banner */
+  .dev-code-banner {
+    background: #fffbeb;
+    border: 1.5px dashed #fcd34d;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #92400e;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .dev-code-banner strong {
+    font-size: 20px;
+    letter-spacing: 4px;
+    display: block;
+    color: #1d4ed8;
+    margin: 4px 0 2px;
+    font-weight: 700;
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    15%      { transform: translateX(-6px); }
+    35%      { transform: translateX(6px); }
+    55%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
+  }
+
+  .send-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 8px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+<div id="root">
+
+  <!-- ===== AUTH SCREEN ===== -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">sb</div>
+      <div class="auth-tagline">Connect with people who actually exist</div>
+
+      <div id="auth-error" class="auth-error"></div>
+
+      <div id="register-form">
+        <div class="auth-title">Create your account</div>
+        <div class="field-group">
+          <label>Full name</label>
+          <input class="field" id="reg-name" type="text" placeholder="Your full name" autocomplete="name">
+        </div>
+        <div class="field-group">
+          <label>Username <span style="color:var(--text3);font-weight:400;font-size:12px">— used to find you (changeable once a month)</span></label>
+          <div style="position:relative">
+            <span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px;pointer-events:none">@</span>
+            <input class="field" id="reg-username" type="text" placeholder="yourname" autocomplete="off" style="padding-left:28px" oninput="sanitizeUsername(this)">
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Lowercase letters, numbers and underscores only</div>
+        </div>
+        <div class="field-group">
+          <label>Email address</label>
+          <input class="field" id="reg-email" type="email" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="field-group">
+          <label>Password</label>
+          <input class="field" id="reg-pass" type="password" placeholder="Minimum 6 characters" autocomplete="new-password">
+        </div>
+        <button class="btn-primary" onclick="register()">Create account</button>
+        <div class="auth-divider">or</div>
+        <button class="btn-ghost" onclick="showLogin()">Log in to existing account</button>
+      </div>
+
+      <!-- VERIFICATION STEP -->
+      <div id="verify-form" style="display:none">
+        <div class="verify-icon">📧</div>
+        <div class="auth-title" style="text-align:center;margin-bottom:6px">Check your email</div>
+        <p style="text-align:center;font-size:13px;color:var(--text2);margin-bottom:4px">We sent a 6-digit code to</p>
+        <div style="text-align:center"><span class="verify-email-highlight" id="verify-email-display"></span></div>
+
+        <!-- Fallback: shown only if EmailJS fails to send -->
+        <div id="setup-banner" style="display:none;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">
+          Your code: <strong id="dev-code-display" style="letter-spacing:3px;font-size:16px"></strong>
+        </div>
+
+        <!-- Sending spinner -->
+        <div id="sending-status" style="text-align:center;padding:12px 0;font-size:13px;color:var(--text2);display:none">
+          <div class="send-spinner"></div>
+          Sending code to your inbox…
+        </div>
+
+        <!-- Sent confirmation -->
+        <div id="sent-confirm" style="display:none;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">
+          ✅ Code sent! Check your inbox (and spam folder just in case).
+        </div>
+
+        <div class="code-inputs" id="code-inputs">
+          <input class="code-input" id="c0" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(0)" onkeydown="handleCodeKey(0,event)">
+          <input class="code-input" id="c1" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(1)" onkeydown="handleCodeKey(1,event)">
+          <input class="code-input" id="c2" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(2)" onkeydown="handleCodeKey(2,event)">
+          <input class="code-input" id="c3" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(3)" onkeydown="handleCodeKey(3,event)">
+          <input class="code-input" id="c4" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(4)" onkeydown="handleCodeKey(4,event)">
+          <input class="code-input" id="c5" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(5)" onkeydown="handleCodeKey(5,event)">
+        </div>
+
+        <button class="btn-primary" id="verify-btn" onclick="verifyCode()" style="margin-top:8px">Verify account</button>
+
+        <div class="resend-row">
+          Didn't get it? <span id="resend-btn" onclick="resendCode()">Resend code</span>
+          <span id="resend-timer" style="display:none"> in <span id="resend-countdown">60</span>s</span>
+        </div>
+        <div style="text-align:center;margin-top:12px">
+          <button class="btn-ghost" onclick="backToRegister()" style="width:auto;padding:8px 18px;font-size:13px">← Back</button>
+        </div>
+      </div>
+
+      <div id="login-form" style="display:none">
+        <div class="auth-title">Welcome back</div>
+        <div class="field-group">
+          <label>Email address</label>
+          <input class="field" id="log-email" type="email" placeholder="you@example.com" autocomplete="email">
+        </div>
+        <div class="field-group">
+          <label>Password</label>
+          <input class="field" id="log-pass" type="password" placeholder="Your password" autocomplete="current-password">
+        </div>
+        <button class="btn-primary" onclick="login()">Log in</button>
+        <div class="auth-divider">or</div>
+        <button class="btn-ghost" onclick="showRegister()">Create new account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP ===== -->
+  <div id="app">
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-logo">sb</div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="showToast('Messenger coming soon!')" title="Messages">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <button class="icon-btn" onclick="showToast('No new notifications')" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== FEED SCREEN ===== -->
+    <div class="screen active" id="screen-feed">
+      <div class="scroll-area">
+
+        <!-- Stories -->
+        <div class="stories-bar" id="stories-bar">
+          <div class="story-item">
+            <label>
+              <div class="story-add-ring" title="Add story">+</div>
+              <input type="file" accept="image/*" style="display:none" onchange="addStory(event)">
+            </label>
+            <span class="story-name">Add story</span>
+          </div>
+          <!-- demo stories inserted by JS -->
+        </div>
+
+        <!-- Composer -->
+        <div class="composer-card">
+          <div class="composer-top">
+            <div class="composer-av" id="composer-av">?</div>
+            <textarea
+              class="composer-input"
+              id="post-textarea"
+              placeholder="What's on your mind?"
+              rows="1"
+              oninput="autoResizeTextarea(this)"
+            ></textarea>
+          </div>
+          <div class="photo-preview" id="photo-preview">
+            <img id="photo-preview-img" src="" alt="">
+            <button class="photo-preview-remove" onclick="removePhotoPreview()">✕</button>
+          </div>
+          <div class="composer-actions">
+            <label class="composer-action-btn" style="cursor:pointer">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Photo
+              <input type="file" accept="image/*" style="display:none" onchange="selectPostPhoto(event)">
+            </label>
+            <button class="btn-post" onclick="submitPost()">Post</button>
+          </div>
+        </div>
+
+        <!-- Feed posts -->
+        <div id="posts-container"></div>
+      </div>
+    </div>
+
+    <!-- ===== FRIENDS SCREEN ===== -->
+    <div class="screen" id="screen-friends">
+      <div class="screen-header">
+        <h2>Friends</h2>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="friend-search" placeholder="Search by name or @username..." oninput="searchFriends(this.value)">
+        </div>
+      </div>
+      <div class="scroll-area">
+        <div id="friend-requests-section">
+          <div class="section-label">Friend requests</div>
+          <div id="friend-requests"></div>
+        </div>
+        <div id="suggestions-section">
+          <div class="section-label">People you may know</div>
+          <div id="friend-suggestions"></div>
+        </div>
+        <div id="search-results-section" class="hidden">
+          <div class="section-label">Search results</div>
+          <div id="search-results-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== MARKET SCREEN ===== -->
+    <div class="screen" id="screen-market">
+      <div class="scroll-area">
+        <div class="market-hero">
+          <h2>sb Marketplace</h2>
+          <p>Buy tickets to unlock and gift NFTs for your profile</p>
+          <div class="wallet-chip">
+            🎫 <span id="ticket-count">0</span> tickets
+          </div>
+        </div>
+
+        <div class="market-section-title">Featured NFTs</div>
+        <div class="nft-grid" id="nft-grid"></div>
+
+        <div class="ticket-section">
+          <h3>Buy Tickets</h3>
+          <div class="ticket-packs" id="ticket-packs"></div>
+          <button class="btn-pay" id="pay-btn" onclick="purchaseTickets()">Select a pack to continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SAVED SCREEN ===== -->
+    <div class="screen" id="screen-saved">
+      <div class="scroll-area">
+        <div class="note-composer">
+          <div style="font-size:15px;font-weight:700;margin-bottom:10px">Saved messages & notes</div>
+          <textarea id="note-textarea" placeholder="Write a note to save..."></textarea>
+          <button class="btn-post" onclick="saveNote()">Save note</button>
+        </div>
+        <div id="saved-list"></div>
+      </div>
+    </div>
+
+    <!-- ===== PROFILE SCREEN ===== -->
+    <div class="screen" id="screen-profile">
+      <div class="scroll-area">
+        <div class="profile-cover"></div>
+        <div class="profile-main">
+          <label style="cursor:pointer">
+            <div class="profile-pic-wrap">
+              <div class="profile-pic" id="profile-pic">
+                <span id="profile-initials">?</span>
+              </div>
+              <div class="profile-pic-edit">✎</div>
+            </div>
+            <input type="file" accept="image/*" style="display:none" onchange="changeProfilePic(event)">
+          </label>
+          <div class="profile-name" id="profile-name-display">—</div>
+          <div id="profile-username-display" style="font-size:13px;color:var(--blue);margin-bottom:2px;font-weight:500"></div>
+          <div class="profile-email" id="profile-email-display">—</div>
+          <div class="profile-stats">
+            <div class="stat-item"><div class="stat-num" id="stat-posts">0</div><div class="stat-label">Posts</div></div>
+            <div class="stat-item"><div class="stat-num" id="stat-friends">3</div><div class="stat-label">Friends</div></div>
+            <div class="stat-item"><div class="stat-num" id="stat-nfts">0</div><div class="stat-label">NFTs</div></div>
+          </div>
+          <div class="nft-badge" id="nft-badge" style="display:none">✨ NFT Holder</div>
+        </div>
+        <div class="profile-edit-section">
+          <h3>Edit profile</h3>
+
+          <!-- Nickname (display name) — changeable once a week -->
+          <div class="field-group" style="margin-bottom:10px">
+            <label style="display:flex;align-items:center;justify-content:space-between">
+              <span>Nickname</span>
+              <span id="name-cooldown-badge" style="font-size:11px;color:var(--text3)"></span>
+            </label>
+            <input class="field" id="edit-name" placeholder="Your display name" style="margin-bottom:2px">
+            <div style="font-size:11px;color:var(--text3)">Changeable once a week</div>
+          </div>
+
+          <!-- Username — changeable once a month -->
+          <div class="field-group" style="margin-bottom:14px">
+            <label style="display:flex;align-items:center;justify-content:space-between">
+              <span>Username</span>
+              <span id="username-cooldown-badge" style="font-size:11px;color:var(--text3)"></span>
+            </label>
+            <div style="position:relative">
+              <span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px;pointer-events:none">@</span>
+              <input class="field" id="edit-username" placeholder="yourname" style="padding-left:28px;margin-bottom:2px" oninput="sanitizeUsername(this)">
+            </div>
+            <div style="font-size:11px;color:var(--text3)">Changeable once a month · used for friend search</div>
+          </div>
+
+          <button class="btn-primary" onclick="saveProfileEdits()">Save changes</button>
+        </div>
+        <button class="btn-logout" onclick="logout()">Log out</button>
+      </div>
+    </div>
+
+    <!-- Bottom tabs -->
+    <div class="bottom-tabs">
+      <button class="tab-btn active" id="tab-feed" onclick="switchTab('feed')">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Feed
+      </button>
+      <button class="tab-btn" id="tab-friends" onclick="switchTab('friends')">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Friends
+      </button>
+      <button class="tab-btn" id="tab-market" onclick="switchTab('market')">
+        <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Market
+      </button>
+      <button class="tab-btn" id="tab-saved" onclick="switchTab('saved')">
+        <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        Saved
+      </button>
+      <button class="tab-btn" id="tab-profile" onclick="switchTab('profile')">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profile
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== STORY VIEWER ===== -->
+  <div class="story-viewer" id="story-viewer">
+    <div class="sv-progress-bar">
+      <div class="sv-progress-fill" id="sv-progress"></div>
+    </div>
+    <div class="sv-author" id="sv-author"></div>
+    <button class="sv-close" onclick="closeStory()">✕</button>
+    <div class="sv-content" id="sv-content"></div>
+  </div>
+
+  <!-- ===== MODAL ===== -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+      <h3 id="modal-title"></h3>
+      <p id="modal-body"></p>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button class="modal-confirm" id="modal-confirm-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast" id="toast"></div>
+</div>
+
+<!-- EmailJS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+<script>
+// ============================================================
+// EMAILJS CONFIGURATION
+// ============================================================
+// Replace these three values with your own from emailjs.com:
+//   1. Sign up at https://www.emailjs.com (free plan: 200 emails/month)
+//   2. Add an Email Service (Gmail, Outlook, etc.) → copy the Service ID
+//   3. Create an Email Template with variables:
+//        {{to_name}}  — recipient's name
+//        {{to_email}} — recipient's email address
+//        {{code}}     — the 6-digit verification code
+//      Subject suggestion: "Your sb verification code: {{code}}"
+//      Body suggestion:
+//        Hi {{to_name}},
+//        Your sb verification code is: {{code}}
+//        This code expires in 10 minutes.
+//   4. Copy your Public Key from Account → API Keys
+var EMAILJS_PUBLIC_KEY  = 'qRyUFZv9eKlCsdHwg';
+var EMAILJS_SERVICE_ID  = 'service_r9jucgq';
+var EMAILJS_TEMPLATE_ID = 'template_vpmdnxr';
+
+var emailJSConfigured = (
+  EMAILJS_PUBLIC_KEY  !== 'YOUR_PUBLIC_KEY' &&
+  EMAILJS_SERVICE_ID  !== 'YOUR_SERVICE_ID' &&
+  EMAILJS_TEMPLATE_ID !== 'YOUR_TEMPLATE_ID'
+);
+
+if (emailJSConfigured) {
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+}
+// ============================================================
+// STATE
+// ============================================================
+var user = { name: '', username: '', email: '', password: '', tickets: 0, nfts: [], posts: 0, friends: 0, lastNameChange: null, lastUsernameChange: null };
+var selectedPack = null;
+var pendingPostPhoto = null; // base64 string
+var storyTimer = null;
+
+// Stories: only stories from real registered users are stored here.
+// When a user posts a story, it is prepended to this array.
+var stories = [];
+
+// Friend suggestions and search: only real registered users appear.
+// registeredUsers grows as people sign up (in a real backend this would be server-side).
+var registeredUsers = [];
+
+// Legacy aliases kept as empty arrays — nothing fake is ever shown
+var friendSuggestions = [];
+var searchDatabase = [];
+
+var nftItems = [
+  { emoji: '🦊', name: 'Cosmic Fox', cost: 3 },
+  { emoji: '🐉', name: 'Neon Dragon', cost: 5 },
+  { emoji: '🌙', name: 'Luna Star', cost: 2 },
+  { emoji: '⚡', name: 'Thunder Bolt', cost: 4 },
+  { emoji: '🔮', name: 'Crystal Ball', cost: 6 },
+  { emoji: '🌊', name: 'Deep Wave', cost: 3 }
+];
+
+var ticketPacks = [
+  { tickets: 5, price: '€0.99', icon: '🎫' },
+  { tickets: 20, price: '€2.99', icon: '🎫' },
+  { tickets: 50, price: '€5.99', icon: '🎫' }
+];
+
+var friendStates = {}; // name -> 'sent' | 'friends'
+
+// ============================================================
+// AUTH
+// ============================================================
+var pendingUser = null;       // holds name/email/pass while awaiting verification
+var verificationCode = '';    // the 6-digit code
+var resendInterval = null;
+
+function showError(msg) {
+  var el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function clearError() {
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+function generateCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function sanitizeUsername(input) {
+  input.value = input.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+}
+
+function register() {
+  clearError();
+  var name = document.getElementById('reg-name').value.trim();
+  var username = document.getElementById('reg-username').value.trim().toLowerCase();
+  var email = document.getElementById('reg-email').value.trim();
+  var pass = document.getElementById('reg-pass').value;
+
+  if (!name) { showError('Please enter your full name.'); return; }
+  if (!username) { showError('Please choose a username.'); return; }
+  if (username.length < 3) { showError('Username must be at least 3 characters.'); return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { showError('Username can only contain lowercase letters, numbers and underscores.'); return; }
+  if (!email || !email.includes('@') || !email.includes('.')) { showError('Please enter a valid email address.'); return; }
+  if (pass.length < 6) { showError('Password must be at least 6 characters.'); return; }
+
+  // Check email already registered
+  var alreadyEmail = registeredUsers.find(function(u) { return u.email === email; });
+  if (alreadyEmail) { showError('An account with this email already exists. Please log in.'); return; }
+
+  // Check username taken
+  var alreadyUser = registeredUsers.find(function(u) { return u.username === username; });
+  if (alreadyUser) { showError('Username @' + username + ' is already taken. Please choose another.'); return; }
+
+  pendingUser = { name: name, username: username, email: email, password: pass };
+  sendVerificationCode(email);
+  showVerifyScreen(email);
+}
+
+function sendVerificationCode(email) {
+  verificationCode = generateCode();
+  document.getElementById('verify-email-display').textContent = email;
+
+  if (!emailJSConfigured) {
+    // Not yet configured — show fallback banner with the code visible
+    document.getElementById('setup-banner').style.display = 'block';
+    document.getElementById('dev-code-display').textContent = verificationCode;
+    document.getElementById('sending-status').style.display = 'none';
+    document.getElementById('sent-confirm').style.display = 'none';
+    startResendCountdown();
+    return;
+  }
+
+  // EmailJS is configured — send the real email
+  document.getElementById('setup-banner').style.display = 'none';
+  document.getElementById('sent-confirm').style.display = 'none';
+  document.getElementById('sending-status').style.display = 'block';
+
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_name:  pendingUser.name,
+    to_email: email,
+    code:     verificationCode
+  }).then(function() {
+    document.getElementById('sending-status').style.display = 'none';
+    document.getElementById('sent-confirm').style.display = 'block';
+    startResendCountdown();
+  }, function(err) {
+    document.getElementById('sending-status').style.display = 'none';
+    // Fallback: show code on screen if send fails
+    document.getElementById('setup-banner').style.display = 'block';
+    document.getElementById('dev-code-display').textContent = verificationCode;
+    showError('Could not send email (EmailJS error: ' + (err.text || JSON.stringify(err)) + '). Code shown above as fallback.');
+    startResendCountdown();
+  });
+}
+
+function showVerifyScreen(email) {
+  document.getElementById('register-form').style.display = 'none';
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('verify-form').style.display = 'block';
+  clearError();
+  // Clear code inputs
+  for (var i = 0; i < 6; i++) {
+    var inp = document.getElementById('c' + i);
+    inp.value = '';
+    inp.classList.remove('filled');
+  }
+  setTimeout(function() { document.getElementById('c0').focus(); }, 100);
+}
+
+function handleCodeInput(index) {
+  var inp = document.getElementById('c' + index);
+  // Allow only digits
+  inp.value = inp.value.replace(/[^0-9]/g, '');
+  if (inp.value.length === 1) {
+    inp.classList.add('filled');
+    // Auto-advance
+    if (index < 5) {
+      document.getElementById('c' + (index + 1)).focus();
+    } else {
+      // All filled — auto-submit
+      verifyCode();
+    }
+  } else {
+    inp.classList.remove('filled');
+  }
+}
+
+function handleCodeKey(index, e) {
+  if (e.key === 'Backspace') {
+    var inp = document.getElementById('c' + index);
+    if (!inp.value && index > 0) {
+      var prev = document.getElementById('c' + (index - 1));
+      prev.value = '';
+      prev.classList.remove('filled');
+      prev.focus();
+    }
+  }
+}
+
+function verifyCode() {
+  var entered = '';
+  for (var i = 0; i < 6; i++) {
+    entered += document.getElementById('c' + i).value;
+  }
+  if (entered.length < 6) { showError('Please enter all 6 digits.'); return; }
+  if (entered !== verificationCode) {
+    showError('Incorrect code. Please try again.');
+    // Shake the inputs
+    var inputs = document.getElementById('code-inputs');
+    inputs.style.animation = 'none';
+    inputs.offsetHeight; // reflow
+    inputs.style.animation = 'shake 0.4s ease';
+    // Clear inputs
+    for (var j = 0; j < 6; j++) {
+      var inp = document.getElementById('c' + j);
+      inp.value = '';
+      inp.classList.remove('filled');
+    }
+    document.getElementById('c0').focus();
+    return;
+  }
+
+  // ✅ Code correct — create the account
+  clearError();
+  clearInterval(resendInterval);
+  user.name = pendingUser.name;
+  user.username = pendingUser.username;
+  user.email = pendingUser.email;
+  user.password = pendingUser.password;
+  user.verified = true;
+  user.lastNameChange = null;     // never changed yet
+  user.lastUsernameChange = null; // never changed yet
+  registeredUsers.push({ initials: getInitials(pendingUser.name), name: pendingUser.name, username: pendingUser.username, email: pendingUser.email, bg: '#e8f0fe', tc: '#1a56db' });
+  pendingUser = null;
+  launchApp();
+  showToast('Email verified! Welcome to sb, ' + user.name.split(' ')[0] + '! 🎉');
+}
+
+function resendCode() {
+  if (document.getElementById('resend-btn').classList.contains('disabled')) return;
+  // Clear inputs
+  for (var i = 0; i < 6; i++) {
+    var inp = document.getElementById('c' + i);
+    inp.value = '';
+    inp.classList.remove('filled');
+  }
+  document.getElementById('sent-confirm').style.display = 'none';
+  clearError();
+  sendVerificationCode(pendingUser.email);
+  if (emailJSConfigured) showToast('New code sent to your inbox!');
+  else showToast('New code generated!');
+  document.getElementById('c0').focus();
+}
+
+function startResendCountdown() {
+  var btn = document.getElementById('resend-btn');
+  var timerWrap = document.getElementById('resend-timer');
+  var countEl = document.getElementById('resend-countdown');
+  btn.classList.add('disabled');
+  timerWrap.style.display = 'inline';
+  var secs = 60;
+  countEl.textContent = secs;
+  clearInterval(resendInterval);
+  resendInterval = setInterval(function() {
+    secs--;
+    countEl.textContent = secs;
+    if (secs <= 0) {
+      clearInterval(resendInterval);
+      btn.classList.remove('disabled');
+      timerWrap.style.display = 'none';
+    }
+  }, 1000);
+}
+
+function backToRegister() {
+  clearError();
+  clearInterval(resendInterval);
+  document.getElementById('verify-form').style.display = 'none';
+  document.getElementById('register-form').style.display = 'block';
+}
+
+function login() {
+  clearError();
+  var email = document.getElementById('log-email').value.trim();
+  var pass = document.getElementById('log-pass').value;
+
+  if (!email || !pass) { showError('Please fill in all fields.'); return; }
+  // Find in registered users
+  var found = registeredUsers.find(function(u) { return u.email === email; });
+  if (found && user.email === email && user.password === pass) {
+    launchApp();
+    showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
+  } else {
+    showError('Wrong email or password. Please try again.');
+  }
+}
+
+function showLogin() {
+  clearError();
+  document.getElementById('register-form').style.display = 'none';
+  document.getElementById('verify-form').style.display = 'none';
+  document.getElementById('login-form').style.display = 'block';
+}
+
+function showRegister() {
+  clearError();
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('verify-form').style.display = 'none';
+  document.getElementById('register-form').style.display = 'block';
+}
+
+function logout() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('verify-form').style.display = 'none';
+  document.getElementById('register-form').style.display = 'block';
+  clearError();
+}
+
+function launchApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('app').style.flexDirection = 'column';
+  initApp();
+}
+
+// ============================================================
+// APP INIT
+// ============================================================
+function initApp() {
+  updateProfileUI();
+  renderStories();
+  renderDemoPosts();
+  renderFriendRequests();
+  renderFriendSuggestions();
+  renderNFTs();
+  renderTicketPacks();
+  renderSaved();
+}
+
+function updateProfileUI() {
+  var initials = getInitials(user.name);
+  // Composer avatar
+  var compAv = document.getElementById('composer-av');
+  if (user.profilePic) {
+    compAv.innerHTML = '<img src="' + user.profilePic + '" alt="">';
+  } else {
+    compAv.textContent = initials;
+  }
+  // Profile screen
+  document.getElementById('profile-name-display').textContent = user.name || '—';
+  document.getElementById('profile-username-display').textContent = user.username ? '@' + user.username : '';
+  document.getElementById('profile-email-display').textContent = user.email || '—';
+  document.getElementById('profile-initials').textContent = initials;
+  var pp = document.getElementById('profile-pic');
+  if (user.profilePic) {
+    pp.innerHTML = '<img src="' + user.profilePic + '">';
+  } else {
+    pp.innerHTML = '<span id="profile-initials">' + initials + '</span>';
+  }
+  document.getElementById('stat-posts').textContent = user.posts;
+  document.getElementById('stat-friends').textContent = user.friends;
+  document.getElementById('stat-nfts').textContent = user.nfts.length;
+  document.getElementById('ticket-count').textContent = user.tickets;
+  document.getElementById('edit-name').value = user.name || '';
+  document.getElementById('edit-username').value = user.username || '';
+  if (user.nfts.length > 0) document.getElementById('nft-badge').style.display = 'inline-flex';
+
+  // Cooldown badges
+  var now = Date.now();
+  var WEEK_MS  = 7  * 24 * 60 * 60 * 1000;
+  var MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+  var nameBadge = document.getElementById('name-cooldown-badge');
+  if (user.lastNameChange && (now - user.lastNameChange) < WEEK_MS) {
+    var nameLeft = msToReadable(WEEK_MS - (now - user.lastNameChange));
+    nameBadge.textContent = '🔒 Available in ' + nameLeft;
+    nameBadge.style.color = 'var(--red)';
+  } else {
+    nameBadge.textContent = user.lastNameChange ? '✅ Can change now' : '';
+    nameBadge.style.color = 'var(--green)';
+  }
+
+  var usernameBadge = document.getElementById('username-cooldown-badge');
+  if (user.lastUsernameChange && (now - user.lastUsernameChange) < MONTH_MS) {
+    var usernameLeft = msToReadable(MONTH_MS - (now - user.lastUsernameChange));
+    usernameBadge.textContent = '🔒 Available in ' + usernameLeft;
+    usernameBadge.style.color = 'var(--red)';
+  } else {
+    usernameBadge.textContent = user.lastUsernameChange ? '✅ Can change now' : '';
+    usernameBadge.style.color = 'var(--green)';
+  }
+}
+
+function msToReadable(ms) {
+  var days  = Math.floor(ms / (24 * 60 * 60 * 1000));
+  var hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  if (days > 0) return days + 'd ' + hours + 'h';
+  var mins = Math.floor((ms % (60 * 60 * 1000)) / 60000);
+  if (hours > 0) return hours + 'h ' + mins + 'm';
+  return mins + 'm';
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  var parts = name.trim().split(' ').filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.classList.remove('active');
+  });
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  document.querySelectorAll('.screen').forEach(function(s) {
+    s.classList.remove('active');
+  });
+  document.getElementById('screen-' + tab).classList.add('active');
+}
+
+// ============================================================
+// STORIES
+// ============================================================
+function renderStories() {
+  var bar = document.getElementById('stories-bar');
+  // Keep the "add story" button (first child)
+  var addBtn = bar.children[0];
+  bar.innerHTML = '';
+  bar.appendChild(addBtn);
+
+  stories.forEach(function(s, i) {
+    var item = document.createElement('div');
+    item.className = 'story-item';
+    var avatarContent = s.img
+      ? '<img src="' + s.img + '" alt="' + s.name + '">'
+      : '<span style="font-size:13px;font-weight:600;color:' + s.textColor + '">' + s.initials + '</span>';
+    item.innerHTML =
+      '<div class="story-ring unseen" onclick="viewStory(' + i + ')" style="cursor:pointer">' +
+        '<div class="story-avatar" style="background:' + s.color + '">' + avatarContent + '</div>' +
+      '</div>' +
+      '<span class="story-name">' + s.name + '</span>';
+    bar.appendChild(item);
+  });
+}
+
+function addStory(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var initials = getInitials(user.name) || 'ME';
+    stories.unshift({ initials: initials, name: 'Your story', color: '#e8f0fe', textColor: '#1a56db', emoji: '📸', img: ev.target.result });
+    renderStories();
+    showToast('Story posted! 📸');
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function viewStory(index) {
+  var s = stories[index];
+  var viewer = document.getElementById('story-viewer');
+  var content = document.getElementById('sv-content');
+  var author = document.getElementById('sv-author');
+  var progress = document.getElementById('sv-progress');
+
+  author.textContent = s.name;
+
+  if (s.img) {
+    content.innerHTML = '<img src="' + s.img + '" alt="' + s.name + '">';
+  } else {
+    content.innerHTML = '<div class="sv-emoji">' + s.emoji + '</div>';
+  }
+
+  viewer.style.display = 'flex';
+  progress.style.transition = 'none';
+  progress.style.width = '0%';
+
+  setTimeout(function() {
+    progress.style.transition = 'width 3s linear';
+    progress.style.width = '100%';
+  }, 30);
+
+  clearTimeout(storyTimer);
+  storyTimer = setTimeout(closeStory, 3000);
+}
+
+function closeStory() {
+  document.getElementById('story-viewer').style.display = 'none';
+  clearTimeout(storyTimer);
+}
+
+// ============================================================
+// POSTS
+// ============================================================
+function renderDemoPosts() {
+  var container = document.getElementById('posts-container');
+  container.innerHTML =
+    '<div class="post-empty-state" style="text-align:center;padding:48px 20px;color:var(--text3)">' +
+      '<div style="font-size:40px;margin-bottom:12px">✍️</div>' +
+      '<div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">No posts yet</div>' +
+      '<div style="font-size:13px">Be the first to post something!</div>' +
+    '</div>';
+}
+
+function createPostHTML(initials, name, time, text, bg, tc, imgSrc) {
+  var imgHTML = imgSrc ? '<img class="post-image" src="' + imgSrc + '" alt="Post image">' : '';
+  var safeName = (name || '').replace(/'/g, '&#39;');
+  var safeText = (text || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+  return '<div class="post-card">' +
+    '<div class="post-header">' +
+      '<div class="post-av" style="background:' + bg + ';color:' + tc + '">' + initials + '</div>' +
+      '<div class="post-meta">' +
+        '<div class="post-name">' + name + '</div>' +
+        '<div class="post-time">' + time + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="post-text">' + text + '</div>' +
+    imgHTML +
+    '<div class="post-actions">' +
+      '<button class="post-action-btn" onclick="toggleLike(this)">' +
+        '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Like' +
+      '</button>' +
+      '<button class="post-action-btn" onclick="showToast(\'Comment added!\')">' +
+        '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Comment' +
+      '</button>' +
+      '<button class="post-action-btn" onclick="savePostToSaved(\'' + safeName + '\', \'' + safeText + '\')">' +
+        '<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Save' +
+      '</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function toggleLike(btn) {
+  btn.classList.toggle('liked');
+  var svg = btn.querySelector('svg');
+  if (btn.classList.contains('liked')) {
+    svg.style.fill = 'currentColor';
+    btn.childNodes[btn.childNodes.length - 1].textContent = 'Liked';
+  } else {
+    svg.style.fill = 'none';
+    btn.childNodes[btn.childNodes.length - 1].textContent = 'Like';
+  }
+}
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function selectPostPhoto(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    pendingPostPhoto = ev.target.result;
+    document.getElementById('photo-preview-img').src = ev.target.result;
+    document.getElementById('photo-preview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function removePhotoPreview() {
+  pendingPostPhoto = null;
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('photo-preview-img').src = '';
+}
+
+function submitPost() {
+  var text = document.getElementById('post-textarea').value.trim();
+  if (!text && !pendingPostPhoto) {
+    showToast('Write something or add a photo first!');
+    return;
+  }
+  var initials = getInitials(user.name);
+  var container = document.getElementById('posts-container');
+  // Remove the empty-state placeholder if present
+  var placeholder = container.querySelector('.post-empty-state');
+  if (placeholder) placeholder.remove();
+  var wrapper = document.createElement('div');
+  wrapper.innerHTML = createPostHTML(initials, user.name, 'just now', text || '', '#e8f0fe', '#1a56db', pendingPostPhoto);
+  container.insertBefore(wrapper.firstChild, container.firstChild);
+
+  document.getElementById('post-textarea').value = '';
+  document.getElementById('post-textarea').style.height = 'auto';
+  removePhotoPreview();
+
+  user.posts++;
+  document.getElementById('stat-posts').textContent = user.posts;
+  showToast('Post published! 🎉');
+}
+
+// ============================================================
+// FRIENDS
+// ============================================================
+function renderFriendRequests() {
+  var area = document.getElementById('friend-requests');
+  area.innerHTML = '<div style="padding:10px 16px 0;font-size:13px;color:var(--text3)">No pending requests</div>';
+}
+
+function renderFriendSuggestions() {
+  var area = document.getElementById('friend-suggestions');
+  area.innerHTML = '<div style="padding:10px 16px 4px;font-size:13px;color:var(--text3)">No suggestions yet — invite your friends to join sb!</div>';
+}
+
+function acceptRequest(id, name) {
+  document.getElementById('req-' + id).remove();
+  user.friends++;
+  document.getElementById('stat-friends').textContent = user.friends;
+  showToast(name + ' is now your friend! 👋');
+}
+
+function declineRequest(id) {
+  document.getElementById('req-' + id).remove();
+}
+
+function sendFriendRequest(btn, name) {
+  friendStates[name] = 'sent';
+  btn.outerHTML = '<button class="btn-sent">Request sent</button>';
+  user.friends++;
+  document.getElementById('stat-friends').textContent = user.friends;
+  showToast('Friend request sent to ' + name + '!');
+}
+
+function searchFriends(query) {
+  var q = query.toLowerCase().trim();
+  // Strip leading @ for username search
+  var qClean = q.startsWith('@') ? q.slice(1) : q;
+  var sugSection = document.getElementById('suggestions-section');
+  var srSection = document.getElementById('search-results-section');
+  var srList = document.getElementById('search-results-list');
+
+  if (!q) {
+    sugSection.style.display = 'block';
+    srSection.classList.add('hidden');
+    srList.innerHTML = '';
+    return;
+  }
+
+  sugSection.style.display = 'none';
+  srSection.classList.remove('hidden');
+
+  // Search by name, username, or email — only real registered users, not yourself
+  var results = registeredUsers.filter(function(p) {
+    return p.email !== user.email && (
+      p.name.toLowerCase().includes(qClean) ||
+      (p.username && p.username.toLowerCase().includes(qClean)) ||
+      p.email.toLowerCase().includes(qClean)
+    );
+  });
+
+  if (results.length === 0) {
+    srList.innerHTML = '<div class="no-results">No registered users found for "' + query + '"<br><span style="font-size:12px">Try searching by name or @username</span></div>';
+    return;
+  }
+
+  srList.innerHTML = results.map(function(f) {
+    var state = friendStates[f.name];
+    var btn = state === 'sent'
+      ? '<button class="btn-sent">Request sent</button>'
+      : state === 'friends'
+      ? '<button class="btn-sent">Friends ✓</button>'
+      : '<button class="btn-add" onclick="sendFriendRequest(this, \'' + f.name.replace(/'/g, "\\'") + '\')">+ Add friend</button>';
+    var usernameHtml = f.username ? '<div class="friend-sub" style="color:var(--blue)">@' + f.username + '</div>' : '';
+    return '<div class="friend-item">' +
+      '<div class="friend-av" style="background:' + (f.bg || '#e8f0fe') + ';color:' + (f.tc || '#1a56db') + '">' + f.initials + '</div>' +
+      '<div class="friend-info"><div class="friend-name">' + f.name + '</div>' + usernameHtml + '</div>' +
+      btn +
+    '</div>';
+  }).join('');
+}
+
+// ============================================================
+// MARKET
+// ============================================================
+function renderNFTs() {
+  document.getElementById('nft-grid').innerHTML = nftItems.map(function(n) {
+    return '<div class="nft-card">' +
+      '<div class="nft-thumb">' + n.emoji + '</div>' +
+      '<div class="nft-body">' +
+        '<div class="nft-name">' + n.name + '</div>' +
+        '<div class="nft-price">' + n.cost + ' tickets</div>' +
+        '<button class="btn-buy-nft" onclick="buyNFT(\'' + n.name.replace(/'/g, "\\'") + '\', ' + n.cost + ')">Add to profile</button>' +
+        '<button class="btn-gift-nft" onclick="giftNFT(\'' + n.name.replace(/'/g, "\\'") + '\', ' + n.cost + ')">Gift to friend</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderTicketPacks() {
+  document.getElementById('ticket-packs').innerHTML = ticketPacks.map(function(p, i) {
+    return '<div class="ticket-pack" onclick="selectPack(this, ' + p.tickets + ', \'' + p.price + '\')">' +
+      '<div class="pack-icon">' + p.icon + '</div>' +
+      '<div class="pack-amount">' + p.tickets + ' tickets</div>' +
+      '<div class="pack-price">' + p.price + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function selectPack(el, tickets, price) {
+  document.querySelectorAll('.ticket-pack').forEach(function(p) { p.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedPack = { tickets: tickets, price: price };
+  document.getElementById('pay-btn').textContent = 'Pay ' + price + ' for ' + tickets + ' tickets';
+}
+
+function purchaseTickets() {
+  if (!selectedPack) { showToast('Please select a ticket pack first'); return; }
+  openModal(
+    'Complete purchase',
+    'Pay ' + selectedPack.price + ' for ' + selectedPack.tickets + ' tickets. In production this connects to a real payment gateway (Stripe, PayPal, etc).',
+    function() {
+      user.tickets += selectedPack.tickets;
+      document.getElementById('ticket-count').textContent = user.tickets;
+      showToast('🎫 ' + selectedPack.tickets + ' tickets added to your wallet!');
+      document.querySelectorAll('.ticket-pack').forEach(function(p) { p.classList.remove('selected'); });
+      document.getElementById('pay-btn').textContent = 'Select a pack to continue';
+      selectedPack = null;
+    }
+  );
+}
+
+function buyNFT(name, cost) {
+  if (user.tickets < cost) {
+    showToast('Not enough tickets — buy more below! 🎫');
+    return;
+  }
+  openModal(
+    'Buy ' + name,
+    'Use ' + cost + ' tickets to add ' + name + ' to your profile?',
+    function() {
+      user.tickets -= cost;
+      user.nfts.push(name);
+      document.getElementById('ticket-count').textContent = user.tickets;
+      updateProfileUI();
+      showToast('✨ ' + name + ' added to your profile!');
+    }
+  );
+}
+
+function giftNFT(name, cost) {
+  if (user.tickets < cost) {
+    showToast('Not enough tickets — buy more below! 🎫');
+    return;
+  }
+  openModal(
+    'Gift ' + name,
+    'Use ' + cost + ' tickets to gift ' + name + ' to a friend?',
+    function() {
+      user.tickets -= cost;
+      document.getElementById('ticket-count').textContent = user.tickets;
+      showToast('🎁 ' + name + ' gifted!');
+    }
+  );
+}
+
+// ============================================================
+// SAVED
+// ============================================================
+function renderSaved() {
+  var list = document.getElementById('saved-list');
+  list.innerHTML =
+    '<div style="text-align:center;padding:32px 20px;color:var(--text3)" id="saved-empty-state">' +
+      '<div style="font-size:36px;margin-bottom:10px">🔖</div>' +
+      '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Nothing saved yet</div>' +
+      '<div style="font-size:13px">Save posts or write notes to find them here.</div>' +
+    '</div>';
+}
+
+function savePostToSaved(from, text) {
+  var list = document.getElementById('saved-list');
+  var empty = document.getElementById('saved-empty-state');
+  if (empty) empty.remove();
+  var item = document.createElement('div');
+  item.className = 'saved-item';
+  item.innerHTML =
+    '<div class="saved-from"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved from ' + from + '</div>' +
+    '<div class="saved-text">' + text + '</div>';
+  list.insertBefore(item, list.firstChild);
+  showToast('Post saved! 🔖');
+}
+
+function saveNote() {
+  var text = document.getElementById('note-textarea').value.trim();
+  if (!text) { showToast('Write something first!'); return; }
+  var list = document.getElementById('saved-list');
+  var empty = document.getElementById('saved-empty-state');
+  if (empty) empty.remove();
+  var item = document.createElement('div');
+  item.className = 'saved-item';
+  var now = new Date();
+  var timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  item.innerHTML =
+    '<div class="saved-from" style="color:#7c3aed">📝 Your note · ' + timeStr + '</div>' +
+    '<div class="saved-text">' + text + '</div>';
+  list.insertBefore(item, list.firstChild);
+  document.getElementById('note-textarea').value = '';
+  showToast('Note saved! 📝');
+}
+
+// ============================================================
+// PROFILE
+// ============================================================
+function changeProfilePic(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    user.profilePic = ev.target.result;
+    updateProfileUI();
+    showToast('Profile photo updated! 📸');
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function saveProfileEdits() {
+  var newName     = document.getElementById('edit-name').value.trim();
+  var newUsername = document.getElementById('edit-username').value.trim().toLowerCase();
+  var now         = Date.now();
+  var WEEK_MS     = 7  * 24 * 60 * 60 * 1000;
+  var MONTH_MS    = 30 * 24 * 60 * 60 * 1000;
+  var changed     = false;
+
+  if (!newName)     { showToast('Nickname cannot be empty'); return; }
+  if (!newUsername) { showToast('Username cannot be empty'); return; }
+  if (!/^[a-z0-9_]+$/.test(newUsername)) { showToast('Username: lowercase letters, numbers and underscores only'); return; }
+  if (newUsername.length < 3) { showToast('Username must be at least 3 characters'); return; }
+
+  // --- Nickname change ---
+  if (newName !== user.name) {
+    if (user.lastNameChange && (now - user.lastNameChange) < WEEK_MS) {
+      var nameLeft = msToReadable(WEEK_MS - (now - user.lastNameChange));
+      showToast('🔒 Nickname locked — try again in ' + nameLeft);
+      document.getElementById('edit-name').value = user.name; // revert
+      return;
+    }
+    user.name = newName;
+    user.lastNameChange = now;
+    changed = true;
+  }
+
+  // --- Username change ---
+  if (newUsername !== user.username) {
+    if (user.lastUsernameChange && (now - user.lastUsernameChange) < MONTH_MS) {
+      var usernameLeft = msToReadable(MONTH_MS - (now - user.lastUsernameChange));
+      showToast('🔒 Username locked — try again in ' + usernameLeft);
+      document.getElementById('edit-username').value = user.username; // revert
+      return;
+    }
+    // Check username not taken by someone else
+    var taken = registeredUsers.find(function(u) { return u.username === newUsername && u.email !== user.email; });
+    if (taken) { showToast('@' + newUsername + ' is already taken'); return; }
+
+    // Update in registeredUsers list too
+    var me = registeredUsers.find(function(u) { return u.email === user.email; });
+    if (me) me.username = newUsername;
+
+    user.username = newUsername;
+    user.lastUsernameChange = now;
+    changed = true;
+  }
+
+  if (changed) {
+    // Update initials in registered users
+    var meRecord = registeredUsers.find(function(u) { return u.email === user.email; });
+    if (meRecord) { meRecord.name = user.name; meRecord.initials = getInitials(user.name); }
+    updateProfileUI();
+    showToast('Profile updated! ✅');
+  } else {
+    showToast('No changes to save');
+  }
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+var modalCallback = null;
+
+function openModal(title, body, onConfirm) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').textContent = body;
+  document.getElementById('modal-overlay').style.display = 'flex';
+  modalCallback = onConfirm;
+  document.getElementById('modal-confirm-btn').onclick = function() {
+    closeModal();
+    if (modalCallback) modalCallback();
+  };
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+var toastTimer = null;
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2800);
+}
+
+// Keyboard: Enter on auth fields
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var regForm = document.getElementById('register-form');
+    var logForm = document.getElementById('login-form');
+    if (regForm && regForm.style.display !== 'none') { register(); }
+    else if (logForm && logForm.style.display !== 'none') { login(); }
+  }
+});
+</script>
+</body>
+</html>
