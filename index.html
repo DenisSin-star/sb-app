@@ -1408,6 +1408,53 @@
     to { transform: rotate(360deg); }
   }
 
+  /* Friends sub-tabs */
+  .friends-tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .friends-tab {
+    flex: 1;
+    padding: 12px 8px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .friends-tab.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+  }
+
+  .req-badge {
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+
   /* Profile tabs */
   .profile-tabs {
     display: flex;
@@ -1599,26 +1646,45 @@
 
     <!-- ===== FRIENDS SCREEN ===== -->
     <div class="screen" id="screen-friends">
-      <div class="screen-header">
-        <h2>Friends</h2>
-        <div class="search-box">
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="friend-search" placeholder="Search by name or @username..." oninput="debouncedSearch(this.value)">
+      <!-- Sub-tabs -->
+      <div class="friends-tabs">
+        <button class="friends-tab active" id="ftab-find"     onclick="switchFriendsTab('find')">Find</button>
+        <button class="friends-tab"         id="ftab-requests" onclick="switchFriendsTab('requests')">
+          Requests <span class="req-badge" id="req-badge" style="display:none"></span>
+        </button>
+        <button class="friends-tab"         id="ftab-myfriends" onclick="switchFriendsTab('myfriends')">My Friends</button>
+      </div>
+
+      <!-- FIND TAB -->
+      <div id="ftab-content-find" class="scroll-area">
+        <div style="padding:12px 16px 0">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="friend-search" placeholder="Search by name or @username..." oninput="debouncedSearch(this.value)">
+          </div>
+        </div>
+        <div id="search-results-section" style="margin-top:4px">
+          <div id="search-results-list">
+            <div style="text-align:center;padding:40px 20px;color:var(--text3)">
+              <div style="font-size:32px;margin-bottom:10px">🔍</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on sb</div>
+              <div style="font-size:13px">Search by name or @username</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="scroll-area">
-        <div id="friend-requests-section">
-          <div class="section-label">Friend requests</div>
-          <div id="friend-requests"></div>
-        </div>
-        <div id="suggestions-section">
-          <div class="section-label">People you may know</div>
-          <div id="friend-suggestions"></div>
-        </div>
-        <div id="search-results-section" class="hidden">
-          <div class="section-label">Search results</div>
-          <div id="search-results-list"></div>
-        </div>
+
+      <!-- REQUESTS TAB -->
+      <div id="ftab-content-requests" class="scroll-area" style="display:none">
+        <div class="section-label">Incoming requests</div>
+        <div id="incoming-requests-list"></div>
+        <div class="section-label" style="margin-top:8px">Sent requests</div>
+        <div id="sent-requests-list"></div>
+      </div>
+
+      <!-- MY FRIENDS TAB -->
+      <div id="ftab-content-myfriends" class="scroll-area" style="display:none">
+        <div id="my-friends-list"></div>
       </div>
     </div>
 
@@ -2241,6 +2307,7 @@ function initApp() {
   renderNFTs();
   renderTicketPacks();
   renderSaved();
+  checkRequestsBadge();
 }
 
 function updateProfileUI() {
@@ -2508,33 +2575,227 @@ function submitPost() {
 // ============================================================
 // FRIENDS
 // ============================================================
-function renderFriendRequests() {
-  var area = document.getElementById('friend-requests');
-  area.innerHTML = '<div style="padding:10px 16px 0;font-size:13px;color:var(--text3)">No pending requests</div>';
+function renderFriendRequests() {}   // now handled by loadRequestsTab
+function renderFriendSuggestions() {} // no fake suggestions
+
+// ============================================================
+// FRIENDS TABS
+// ============================================================
+function switchFriendsTab(tab) {
+  document.querySelectorAll('.friends-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('ftab-' + tab).classList.add('active');
+  document.getElementById('ftab-content-find').style.display      = tab === 'find'      ? 'block' : 'none';
+  document.getElementById('ftab-content-requests').style.display  = tab === 'requests'  ? 'block' : 'none';
+  document.getElementById('ftab-content-myfriends').style.display = tab === 'myfriends' ? 'block' : 'none';
+  if (tab === 'requests')  loadRequestsTab();
+  if (tab === 'myfriends') loadMyFriendsTab();
 }
 
-function renderFriendSuggestions() {
-  var area = document.getElementById('friend-suggestions');
-  area.innerHTML = '<div style="padding:10px 16px 4px;font-size:13px;color:var(--text3)">No suggestions yet — invite your friends to join sb!</div>';
+function loadRequestsTab() {
+  var inList  = document.getElementById('incoming-requests-list');
+  var senList = document.getElementById('sent-requests-list');
+  inList.innerHTML  = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">Loading…</div>';
+  senList.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">Loading…</div>';
+
+  if (!fbConfigured || !db) {
+    inList.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">Firebase not connected.</div>';
+    senList.innerHTML = '';
+    return;
+  }
+
+  // Incoming: requests where toEmail == me and status == 'pending'
+  db.collection('friendRequests')
+    .where('toEmail', '==', user.email)
+    .where('status', '==', 'pending')
+    .get()
+    .then(function(snap) {
+      if (snap.empty) {
+        inList.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">No incoming requests</div>';
+        document.getElementById('req-badge').style.display = 'none';
+      } else {
+        document.getElementById('req-badge').style.display = 'inline-flex';
+        document.getElementById('req-badge').textContent = snap.size;
+        inList.innerHTML = '';
+        snap.forEach(function(doc) {
+          var d = doc.data();
+          var div = document.createElement('div');
+          div.className = 'friend-item';
+          div.id = 'req-' + doc.id;
+          div.innerHTML =
+            '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + getInitials(d.fromName) + '</div>' +
+            '<div class="friend-info"><div class="friend-name">' + d.fromName + '</div><div class="friend-sub">@' + (d.fromUsername || '') + '</div></div>' +
+            '<div style="display:flex;gap:6px">' +
+              '<button class="btn-accept" onclick="acceptFriendRequest(\'' + doc.id + '\',\'' + d.fromEmail + '\',\'' + d.fromName.replace(/'/g,"\\'") + '\')">Accept</button>' +
+              '<button class="btn-decline" onclick="declineFriendRequest(\'' + doc.id + '\')">Decline</button>' +
+            '</div>';
+          inList.appendChild(div);
+        });
+      }
+    });
+
+  // Sent: requests where fromEmail == me and status == 'pending'
+  db.collection('friendRequests')
+    .where('fromEmail', '==', user.email)
+    .where('status', '==', 'pending')
+    .get()
+    .then(function(snap) {
+      if (snap.empty) {
+        senList.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">No sent requests</div>';
+      } else {
+        senList.innerHTML = '';
+        snap.forEach(function(doc) {
+          var d = doc.data();
+          var div = document.createElement('div');
+          div.className = 'friend-item';
+          div.innerHTML =
+            '<div class="friend-av" style="background:#f3e8ff;color:#7c3aed">' + getInitials(d.toName) + '</div>' +
+            '<div class="friend-info"><div class="friend-name">' + d.toName + '</div><div class="friend-sub">Pending…</div></div>' +
+            '<button class="btn-sent">Pending</button>';
+          senList.appendChild(div);
+        });
+      }
+    });
 }
 
-function acceptRequest(id, name) {
-  document.getElementById('req-' + id).remove();
-  user.friends++;
-  document.getElementById('stat-friends').textContent = user.friends;
-  showToast(name + ' is now your friend! 👋');
+function loadMyFriendsTab() {
+  var list = document.getElementById('my-friends-list');
+  list.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">Loading…</div>';
+
+  if (!fbConfigured || !db) {
+    list.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">Firebase not connected.</div>';
+    return;
+  }
+
+  // Friends stored on user doc
+  var friends = user.friendsList || [];
+  if (friends.length === 0) {
+    list.innerHTML =
+      '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+        '<div style="font-size:32px;margin-bottom:10px">👋</div>' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No friends yet</div>' +
+        '<div style="font-size:13px">Find people using the Find tab!</div>' +
+      '</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  friends.forEach(function(f) {
+    var div = document.createElement('div');
+    div.className = 'friend-item';
+    div.innerHTML =
+      '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + getInitials(f.name) + '</div>' +
+      '<div class="friend-info"><div class="friend-name">' + f.name + '</div><div class="friend-sub" style="color:var(--blue)">@' + (f.username || '') + '</div></div>' +
+      '<button class="btn-sent">Friends ✓</button>';
+    list.appendChild(div);
+  });
 }
 
-function declineRequest(id) {
-  document.getElementById('req-' + id).remove();
+function sendFriendRequest(btn, username) {
+  if (!fbConfigured || !db) { showToast('Firebase not connected'); return; }
+
+  // Find the target user
+  db.collection('users').where('username', '==', username).get()
+    .then(function(snap) {
+      if (snap.empty) { showToast('User not found'); return; }
+      var targetData = snap.docs[0].data();
+
+      // Write request to Firestore
+      return db.collection('friendRequests').add({
+        fromEmail:    user.email,
+        fromName:     user.name,
+        fromUsername: user.username || '',
+        toEmail:      targetData.email,
+        toName:       targetData.name,
+        toUsername:   targetData.username || '',
+        status:       'pending',
+        createdAt:    Date.now()
+      });
+    })
+    .then(function() {
+      friendStates[username] = 'sent';
+      if (btn) btn.outerHTML = '<button class="btn-sent">Request sent</button>';
+      showToast('Friend request sent! 👋');
+    })
+    .catch(function() { showToast('Could not send request. Try again.'); });
 }
 
-function sendFriendRequest(btn, name) {
-  friendStates[name] = 'sent';
-  btn.outerHTML = '<button class="btn-sent">Request sent</button>';
-  user.friends++;
-  document.getElementById('stat-friends').textContent = user.friends;
-  showToast('Friend request sent to ' + name + '!');
+function acceptFriendRequest(docId, fromEmail, fromName) {
+  if (!fbConfigured || !db) return;
+
+  // Get sender's data
+  db.collection('users').doc(fromEmail).get()
+    .then(function(doc) {
+      var sender = doc.exists ? doc.data() : { name: fromName, username: '', email: fromEmail };
+
+      // Add each other to friendsList
+      var myFriends = user.friendsList || [];
+      myFriends.push({ name: sender.name, username: sender.username || '', email: sender.email });
+      user.friendsList = myFriends;
+      user.friends = myFriends.length;
+
+      var theirFriends = sender.friendsList || [];
+      theirFriends.push({ name: user.name, username: user.username || '', email: user.email });
+
+      // Update both users and mark request accepted
+      var batch = db.batch();
+      batch.update(db.collection('users').doc(user.email), { friendsList: myFriends, friends: myFriends.length });
+      batch.update(db.collection('users').doc(fromEmail), { friendsList: theirFriends, friends: theirFriends.length });
+      batch.update(db.collection('friendRequests').doc(docId), { status: 'accepted' });
+      return batch.commit();
+    })
+    .then(function() {
+      saveUserLocal();
+      document.getElementById('stat-friends').textContent = user.friends;
+      var el = document.getElementById('req-' + docId);
+      if (el) el.remove();
+      // Update badge
+      var remaining = document.querySelectorAll('#incoming-requests-list .friend-item').length;
+      if (remaining === 0) {
+        document.getElementById('req-badge').style.display = 'none';
+        document.getElementById('incoming-requests-list').innerHTML =
+          '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">No incoming requests</div>';
+      } else {
+        document.getElementById('req-badge').textContent = remaining;
+      }
+      showToast('You are now friends! 🎉');
+    })
+    .catch(function() { showToast('Could not accept request. Try again.'); });
+}
+
+function declineFriendRequest(docId) {
+  if (!fbConfigured || !db) return;
+  db.collection('friendRequests').doc(docId).update({ status: 'declined' })
+    .then(function() {
+      var el = document.getElementById('req-' + docId);
+      if (el) el.remove();
+      var remaining = document.querySelectorAll('#incoming-requests-list .friend-item').length;
+      if (remaining === 0) {
+        document.getElementById('req-badge').style.display = 'none';
+        document.getElementById('incoming-requests-list').innerHTML =
+          '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">No incoming requests</div>';
+      } else {
+        document.getElementById('req-badge').textContent = remaining;
+      }
+    });
+}
+
+// Check for pending requests on load and show badge
+function checkRequestsBadge() {
+  if (!fbConfigured || !db || !user.email) return;
+  db.collection('friendRequests')
+    .where('toEmail', '==', user.email)
+    .where('status', '==', 'pending')
+    .get()
+    .then(function(snap) {
+      var badge = document.getElementById('req-badge');
+      if (!badge) return;
+      if (snap.size > 0) {
+        badge.style.display = 'inline-flex';
+        badge.textContent = snap.size;
+      } else {
+        badge.style.display = 'none';
+      }
+    });
 }
 
 var searchDebounceTimer = null;
@@ -2546,19 +2807,18 @@ function debouncedSearch(val) {
 function searchFriends(query) {
   var q = query.toLowerCase().trim();
   var qClean = q.startsWith('@') ? q.slice(1) : q;
-  var sugSection = document.getElementById('suggestions-section');
-  var srSection  = document.getElementById('search-results-section');
-  var srList     = document.getElementById('search-results-list');
+  var srList = document.getElementById('search-results-list');
 
   if (!qClean) {
-    sugSection.style.display = 'block';
-    srSection.classList.add('hidden');
-    srList.innerHTML = '';
+    srList.innerHTML =
+      '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+        '<div style="font-size:32px;margin-bottom:10px">🔍</div>' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on sb</div>' +
+        '<div style="font-size:13px">Search by name or @username</div>' +
+      '</div>';
     return;
   }
 
-  sugSection.style.display = 'none';
-  srSection.classList.remove('hidden');
   srList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Searching…</div>';
 
   if (!fbConfigured || !db) {
@@ -2566,7 +2826,7 @@ function searchFriends(query) {
     return;
   }
 
-  // Query Firestore for users whose username matches
+  // First try exact username match
   db.collection('users').where('username', '==', qClean).get()
     .then(function(snapshot) {
       var results = [];
@@ -2574,9 +2834,8 @@ function searchFriends(query) {
         var d = doc.data();
         if (d.email !== user.email) results.push(d);
       });
-
-      // If no username match, try searching by name (prefix)
       if (results.length === 0) {
+        // Fallback: scan all for partial name/username match
         return db.collection('users').get().then(function(all) {
           var nameResults = [];
           all.forEach(function(doc) {
@@ -2594,17 +2853,21 @@ function searchFriends(query) {
     })
     .then(function(results) {
       if (!results || results.length === 0) {
-        srList.innerHTML = '<div class="no-results">No users found for "' + query + '"<br><span style="font-size:12px">Make sure they have registered on sb</span></div>';
+        srList.innerHTML =
+          '<div class="no-results">No users found for "' + query + '"<br>' +
+          '<span style="font-size:12px">Make sure they have registered on sb</span></div>';
         return;
       }
       srList.innerHTML = results.map(function(f) {
         var initials = getInitials(f.name);
-        var state = friendStates[f.username || f.name];
-        var btn = state === 'sent'
-          ? '<button class="btn-sent">Request sent</button>'
-          : state === 'friends'
+        var key = f.username || f.name;
+        var isFriend = (user.friendsList || []).find(function(fr) { return fr.email === f.email; });
+        var state = friendStates[key];
+        var btn = isFriend
           ? '<button class="btn-sent">Friends ✓</button>'
-          : '<button class="btn-add" onclick="sendFriendRequest(this, \'' + (f.username || f.name).replace(/'/g, "\\'") + '\')">+ Add friend</button>';
+          : state === 'sent'
+          ? '<button class="btn-sent">Request sent</button>'
+          : '<button class="btn-add" onclick="sendFriendRequest(this, \'' + (f.username || '').replace(/'/g, "\\'") + '\')">+ Add friend</button>';
         var usernameHtml = f.username ? '<div class="friend-sub" style="color:var(--blue)">@' + f.username + '</div>' : '';
         return '<div class="friend-item">' +
           '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + initials + '</div>' +
@@ -2613,7 +2876,7 @@ function searchFriends(query) {
         '</div>';
       }).join('');
     })
-    .catch(function(err) {
+    .catch(function() {
       srList.innerHTML = '<div class="no-results">Search failed. Please try again.</div>';
     });
 }
