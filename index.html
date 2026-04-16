@@ -1527,7 +1527,7 @@
           <label>Password</label>
           <input class="field" id="log-pass" type="password" placeholder="Your password" autocomplete="current-password">
         </div>
-        <button class="btn-primary" onclick="login()">Log in</button>
+        <button class="btn-primary" id="login-btn" onclick="login()">Log in</button>
         <div class="auth-divider">or</div>
         <button class="btn-ghost" onclick="showRegister()">Create new account</button>
       </div>
@@ -1808,26 +1808,40 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <!-- EmailJS SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <script>
 // ============================================================
+// FIREBASE CONFIGURATION
+// ============================================================
+// Go to https://console.firebase.google.com
+// Create a project → Add web app → copy the firebaseConfig below
+// Then go to Firestore Database → Create database → Start in test mode
+var firebaseConfig = {
+  apiKey:            "AIzaSyBFanG3d3UcI8HMrD-pXfpiHVr72y1TEOQ",
+  authDomain:        "sb-app-3d05f.firebaseapp.com",
+  projectId:         "sb-app-3d05f",
+  storageBucket:     "sb-app-3d05f.firebasestorage.app",
+  messagingSenderId: "634493966899",
+  appId:             "1:634493966899:web:e237ef9a226097ed51e146"
+};
+
+var fbConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+var db = null;
+
+if (fbConfigured) {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+}
+
+// ============================================================
 // EMAILJS CONFIGURATION
 // ============================================================
-// Replace these three values with your own from emailjs.com:
-//   1. Sign up at https://www.emailjs.com (free plan: 200 emails/month)
-//   2. Add an Email Service (Gmail, Outlook, etc.) → copy the Service ID
-//   3. Create an Email Template with variables:
-//        {{to_name}}  — recipient's name
-//        {{to_email}} — recipient's email address
-//        {{code}}     — the 6-digit verification code
-//      Subject suggestion: "Your sb verification code: {{code}}"
-//      Body suggestion:
-//        Hi {{to_name}},
-//        Your sb verification code is: {{code}}
-//        This code expires in 10 minutes.
-//   4. Copy your Public Key from Account → API Keys
 var EMAILJS_PUBLIC_KEY  = 'qRyUFZv9eKlCsdHwg';
 var EMAILJS_SERVICE_ID  = 'service_r9jucgq';
 var EMAILJS_TEMPLATE_ID = 'template_vpmdnxr';
@@ -1841,28 +1855,54 @@ var emailJSConfigured = (
 if (emailJSConfigured) {
   emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY, blockHeadless: false });
 }
-// ============================================================
-// PERSISTENCE
-// ============================================================
-// Accounts are stored as a dictionary: { email: { name, username, password, ... } }
-// This means ANY registered user can log in from any device/session on the same origin.
 
-function saveUserData() {
+// ============================================================
+// FIREBASE HELPERS — save / load user across all devices
+// ============================================================
+function saveUserToFirebase(callback) {
+  if (!fbConfigured || !db) { saveUserLocal(); if(callback) callback(); return; }
+  var data = JSON.parse(JSON.stringify(user));
+  db.collection('users').doc(user.email.toLowerCase()).set(data)
+    .then(function() {
+      saveUserLocal();
+      if (callback) callback();
+    })
+    .catch(function(e) { saveUserLocal(); if(callback) callback(); });
+}
+
+function loadUserFromFirebase(email, callback) {
+  if (!fbConfigured || !db) {
+    // Fallback to localStorage
+    var accounts = getLocalAccounts();
+    callback(accounts[email] || null);
+    return;
+  }
+  db.collection('users').doc(email).get()
+    .then(function(doc) {
+      if (doc.exists) {
+        callback(doc.data());
+      } else {
+        callback(null);
+      }
+    })
+    .catch(function() { callback(null); });
+}
+
+// ============================================================
+// LOCAL STORAGE FALLBACK
+// ============================================================
+function saveUserLocal() {
   try {
-    // Save current logged-in user's full data
-    var accounts = getAccounts();
+    var accounts = getLocalAccounts();
     accounts[user.email.toLowerCase()] = JSON.parse(JSON.stringify(user));
     localStorage.setItem('sb_accounts', JSON.stringify(accounts));
-    localStorage.setItem('sb_registered', JSON.stringify(registeredUsers));
-    localStorage.setItem('sb_session', user.email.toLowerCase()); // remember who is logged in
+    localStorage.setItem('sb_session', user.email.toLowerCase());
   } catch(e) {}
 }
 
-function getAccounts() {
-  try {
-    var a = localStorage.getItem('sb_accounts');
-    return a ? JSON.parse(a) : {};
-  } catch(e) { return {}; }
+function getLocalAccounts() {
+  try { var a = localStorage.getItem('sb_accounts'); return a ? JSON.parse(a) : {}; }
+  catch(e) { return {}; }
 }
 
 function loadUserData() {
@@ -2077,9 +2117,10 @@ function verifyCode() {
   user.lastUsernameChange = null;
   registeredUsers.push({ initials: getInitials(pendingUser.name), name: pendingUser.name, username: pendingUser.username, email: pendingUser.email, bg: '#e8f0fe', tc: '#1a56db' });
   pendingUser = null;
-  saveUserData();
-  launchApp();
-  showToast('Email verified! Welcome to sb, ' + user.name.split(' ')[0] + '! 🎉');
+  saveUserToFirebase(function() {
+    launchApp();
+    showToast('Email verified! Welcome to sb, ' + user.name.split(' ')[0] + '! 🎉');
+  });
 }
 
 function resendCode() {
@@ -2132,27 +2173,26 @@ function login() {
 
   if (!email || !pass) { showError('Please fill in all fields.'); return; }
 
-  // Load latest registered list
-  loadUserData();
+  // Show loading state
+  var btn = document.getElementById('login-btn');
+  if (btn) { btn.textContent = 'Logging in…'; btn.disabled = true; }
 
-  // Look up in the accounts dictionary
-  var accounts = getAccounts();
-  var account = accounts[email];
-
-  if (!account) {
-    showError('No account found with this email. Please register first.');
-    return;
-  }
-
-  if (account.password !== pass) {
-    showError('Wrong password. Please try again.');
-    return;
-  }
-
-  // ✅ Correct — load this account as the active user
-  user = account;
-  launchApp();
-  showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
+  loadUserFromFirebase(email, function(account) {
+    if (btn) { btn.textContent = 'Log in'; btn.disabled = false; }
+    if (!account) {
+      showError('No account found with this email. Please register first.');
+      return;
+    }
+    if (account.password !== pass) {
+      showError('Wrong password. Please try again.');
+      return;
+    }
+    // ✅ Success
+    user = account;
+    saveUserLocal(); // cache locally too
+    launchApp();
+    showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
+  });
 }
 
 function showLogin() {
@@ -2736,9 +2776,7 @@ function saveProfileEdits() {
   if (changed) {
     var meRecord = registeredUsers.find(function(u) { return u.email === user.email; });
     if (meRecord) { meRecord.name = user.name; meRecord.initials = getInitials(user.name); }
-    saveUserData();
-    updateProfileUI();
-    showToast('Profile updated! ✅');
+    saveUserToFirebase(function() { updateProfileUI(); showToast('Profile updated! ✅'); });
   } else {
     showToast('No changes to save');
   }
@@ -2780,11 +2818,12 @@ function changePassword() {
   if (nw === cur) { showPassMsg('New password must be different from the current one.', false); return; }
 
   user.password = nw;
-  saveUserData();
-  document.getElementById('cur-pass').value = '';
-  document.getElementById('new-pass').value = '';
-  document.getElementById('conf-pass').value = '';
-  showPassMsg('✅ Password updated successfully!', true);
+  saveUserToFirebase(function() {
+    document.getElementById('cur-pass').value = '';
+    document.getElementById('new-pass').value = '';
+    document.getElementById('conf-pass').value = '';
+    showPassMsg('✅ Password updated successfully!', true);
+  });
 }
 
 // ============================================================
@@ -2830,21 +2869,21 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// On page load — restore saved data and auto-login if session exists
+// On page load — auto-login if session exists
 (function() {
   loadUserData();
   try {
     var session = localStorage.getItem('sb_session');
     if (session) {
-      var accounts = getAccounts();
-      var account = accounts[session];
-      if (account && account.verified) {
-        user = account;
-        document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-        document.getElementById('app').style.flexDirection = 'column';
-        initApp();
-      }
+      loadUserFromFirebase(session, function(account) {
+        if (account && account.verified) {
+          user = account;
+          document.getElementById('auth-screen').style.display = 'none';
+          document.getElementById('app').style.display = 'flex';
+          document.getElementById('app').style.flexDirection = 'column';
+          initApp();
+        }
+      });
     }
   } catch(e) {}
 })();
