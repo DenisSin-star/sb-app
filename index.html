@@ -3448,10 +3448,17 @@ function getChatId(emailA, emailB) {
   return [emailA, emailB].sort().join('__').replace(/[@.]/g, '_');
 }
 
+// Encode email for use as a Firestore field key (dots not allowed in field paths)
+function emailKey(email) {
+  return email.replace(/\./g, '_dot_').replace(/@/g, '_at_');
+}
+
 // Start a persistent real-time listener for unread counts — runs on all tabs
 function startUnreadListener() {
   if (!fbConfigured || !db || !user.email) return;
   if (unreadListenerUnsub) unreadListenerUnsub();
+
+  var myKey = emailKey(user.email);
 
   unreadListenerUnsub = db.collection('conversations')
     .where('members', 'array-contains', user.email)
@@ -3459,25 +3466,29 @@ function startUnreadListener() {
       var totalUnread = 0;
       snap.forEach(function(doc) {
         var d = doc.data();
-        var myUnread = d.unread ? (d.unread[user.email] || 0) : 0;
+        var myUnread = d.unread ? (d.unread[myKey] || 0) : 0;
+        console.log('conv', doc.id, 'unread for me:', myUnread, 'full unread:', JSON.stringify(d.unread));
         totalUnread += myUnread;
       });
 
+      console.log('Total unread:', totalUnread, 'myKey:', myKey);
+
       var count = totalUnread > 9 ? '9+' : String(totalUnread);
 
-      // Tab badge
       var badge1 = document.getElementById('msg-tab-badge');
       if (badge1) {
         badge1.textContent = count;
         badge1.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
+        console.log('badge1 set to:', badge1.style.visibility);
+      } else {
+        console.log('badge1 element NOT FOUND');
       }
 
-      // Topbar dot
       var badge2 = document.getElementById('msg-topbar-badge');
       if (badge2) {
         badge2.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
       }
-    }, function() {});
+    }, function(err) { console.error('unread listener error:', err); });
 }
 
 function openMessenger() {
@@ -3549,7 +3560,7 @@ function openChat(friendEmail, friendName, friendUsername) {
 
   // Mark only MY messages as read — not the other person's count
   var clearMyUnread = {};
-  clearMyUnread['unread.' + user.email] = 0;
+  clearMyUnread['unread.' + emailKey(user.email)] = 0;
   db.collection('conversations').doc(currentChatId).update(clearMyUnread).catch(function() {});
 
   // Real-time listener for messages
@@ -3587,7 +3598,7 @@ function closeChatView() {
   // Clear my unread for this chat when leaving
   if (currentChatId) {
     var clearMyUnread = {};
-    clearMyUnread['unread.' + user.email] = 0;
+    clearMyUnread['unread.' + emailKey(user.email)] = 0;
     db.collection('conversations').doc(currentChatId).update(clearMyUnread).catch(function() {});
   }
   currentChatId = null;
@@ -3606,39 +3617,42 @@ function sendMessage() {
   input.style.height = 'auto';
 
   var now = Date.now();
+  var chatId = currentChatId;
+  var recipientEmail = currentChatFriend.email;
+  var recipientKey = emailKey(recipientEmail);
 
-  // Write message to subcollection
-  db.collection('conversations').doc(currentChatId)
+  // Write the message
+  db.collection('conversations').doc(chatId)
     .collection('messages').add({ text: text, sender: user.email, ts: now })
-    .catch(function() {});
+    .catch(function(e) { console.error('msg write failed', e); });
 
-  // Build the unread increment key for the recipient
-  var recipientKey = 'unread.' + currentChatFriend.email;
-  var update = {
-    lastMsg:    text,
-    lastSender: user.email,
-    lastTs:     now
-  };
-  update[recipientKey] = firebase.firestore.FieldValue.increment(1);
+  // Read current unread count, increment it, write back
+  var convRef = db.collection('conversations').doc(chatId);
+  convRef.get().then(function(doc) {
+    var data = doc.exists ? doc.data() : {};
+    var currentUnread = (data.unread && data.unread[recipientKey]) ? data.unread[recipientKey] : 0;
+    var newUnread = currentUnread + 1;
 
-  // names and usernames only needed on first message — use set with merge
-  var meta = {
-    members:   [user.email, currentChatFriend.email],
-    names:     {},
-    usernames: {}
-  };
-  meta.names[user.email]               = user.name;
-  meta.names[currentChatFriend.email]  = currentChatFriend.name;
-  meta.usernames[user.email]              = user.username || '';
-  meta.usernames[currentChatFriend.email] = currentChatFriend.username || '';
+    var updateData = {
+      members:    [user.email, recipientEmail],
+      lastMsg:    text,
+      lastSender: user.email,
+      lastTs:     now,
+      names:      {},
+      usernames:  {}
+    };
+    updateData.names[user.email]         = user.name;
+    updateData.names[recipientEmail]     = currentChatFriend.name;
+    updateData.usernames[user.email]     = user.username || '';
+    updateData.usernames[recipientEmail] = currentChatFriend.username || '';
 
-  // First ensure doc exists with member/name data, then increment unread atomically
-  db.collection('conversations').doc(currentChatId)
-    .set(meta, { merge: true })
-    .then(function() {
-      return db.collection('conversations').doc(currentChatId).update(update);
-    })
-    .catch(function() {});
+    // Use encoded key — dot notation in Firestore field paths causes issues
+    var unreadField = 'unread.' + recipientKey;
+    updateData[unreadField] = newUnread;
+
+    console.log('Writing unread field:', unreadField, '=', newUnread);
+    return convRef.set(updateData, { merge: true });
+  }).catch(function(e) { console.error('conv update failed', e); });
 }
 
 function chatKeydown(e) {
