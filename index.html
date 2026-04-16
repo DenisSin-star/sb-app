@@ -3458,30 +3458,56 @@ function startUnreadListener() {
   if (!fbConfigured || !db || !user.email) return;
   if (unreadListenerUnsub) unreadListenerUnsub();
 
-  var myKey = emailKey(user.email);
-
   unreadListenerUnsub = db.collection('conversations')
     .where('members', 'array-contains', user.email)
     .onSnapshot(function(snap) {
       var totalUnread = 0;
+      var myKey = emailKey(user.email);
+
       snap.forEach(function(doc) {
         var d = doc.data();
-        var myUnread = d.unread ? (d.unread[myKey] || 0) : 0;
-        console.log('conv', doc.id, 'unread for me:', myUnread, 'full unread:', JSON.stringify(d.unread));
-        totalUnread += myUnread;
+        var unread = d.unread || {};
+        var count = 0;
+
+        // 1. Try new encoded key (d14886399_at_gmail_dot_com)
+        if (unread[myKey]) count = unread[myKey];
+
+        // 2. Try raw email as key (some old messages stored it this way)
+        if (!count && unread[user.email] && typeof unread[user.email] === 'number') {
+          count = unread[user.email];
+        }
+
+        // 3. Handle Firestore dot-notation split:
+        // email "d14886399@gmail.com" got stored as unread["d14886399@gmail"]["com"]
+        if (!count) {
+          var atIdx = user.email.indexOf('@');
+          if (atIdx > -1) {
+            var local = user.email.substring(0, atIdx);       // d14886399
+            var domain = user.email.substring(atIdx + 1);    // gmail.com
+            var dotIdx = domain.lastIndexOf('.');
+            if (dotIdx > -1) {
+              var domainBase = domain.substring(0, dotIdx);   // gmail
+              var ext = domain.substring(dotIdx + 1);         // com
+              var nestedKey = local + '@' + domainBase;       // d14886399@gmail
+              if (unread[nestedKey] && typeof unread[nestedKey] === 'object') {
+                count = unread[nestedKey][ext] || 0;
+              }
+            }
+          }
+        }
+
+        console.log('conv', doc.id, 'resolved unread:', count, 'raw:', JSON.stringify(unread));
+        totalUnread += count;
       });
 
-      console.log('Total unread:', totalUnread, 'myKey:', myKey);
-
-      var count = totalUnread > 9 ? '9+' : String(totalUnread);
+      console.log('Total unread:', totalUnread);
+      var countStr = totalUnread > 9 ? '9+' : String(totalUnread);
 
       var badge1 = document.getElementById('msg-tab-badge');
       if (badge1) {
-        badge1.textContent = count;
+        badge1.textContent = countStr;
         badge1.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
         console.log('badge1 set to:', badge1.style.visibility);
-      } else {
-        console.log('badge1 element NOT FOUND');
       }
 
       var badge2 = document.getElementById('msg-topbar-badge');
