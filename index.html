@@ -1767,7 +1767,7 @@ var emailJSConfigured = (
 );
 
 if (emailJSConfigured) {
-  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY, blockHeadless: false });
 }
 // ============================================================
 // STATE
