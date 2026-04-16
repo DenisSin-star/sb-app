@@ -3462,41 +3462,25 @@ function startUnreadListener() {
     .where('members', 'array-contains', user.email)
     .onSnapshot(function(snap) {
       var totalUnread = 0;
-      var myKey = emailKey(user.email);
+      var myKey = emailKey(user.email); // e.g. d14886399_at_gmail_dot_com
 
       snap.forEach(function(doc) {
         var d = doc.data();
-        var unread = d.unread || {};
         var count = 0;
 
-        // 1. Try new encoded key (d14886399_at_gmail_dot_com)
-        if (unread[myKey]) count = unread[myKey];
-
-        // 2. Try raw email as key (some old messages stored it this way)
-        if (!count && unread[user.email] && typeof unread[user.email] === 'number') {
-          count = unread[user.email];
+        // The key is stored as a TOP-LEVEL field "unread.d14886399_at_gmail_dot_com"
+        // Firestore returns this as d["unread.d14886399_at_gmail_dot_com"]
+        var topLevelKey = 'unread.' + myKey;
+        if (d[topLevelKey] && typeof d[topLevelKey] === 'number') {
+          count = d[topLevelKey];
         }
 
-        // 3. Handle Firestore dot-notation split:
-        // email "d14886399@gmail.com" got stored as unread["d14886399@gmail"]["com"]
-        if (!count) {
-          var atIdx = user.email.indexOf('@');
-          if (atIdx > -1) {
-            var local = user.email.substring(0, atIdx);       // d14886399
-            var domain = user.email.substring(atIdx + 1);    // gmail.com
-            var dotIdx = domain.lastIndexOf('.');
-            if (dotIdx > -1) {
-              var domainBase = domain.substring(0, dotIdx);   // gmail
-              var ext = domain.substring(dotIdx + 1);         // com
-              var nestedKey = local + '@' + domainBase;       // d14886399@gmail
-              if (unread[nestedKey] && typeof unread[nestedKey] === 'object') {
-                count = unread[nestedKey][ext] || 0;
-              }
-            }
-          }
+        // Also check nested unread object (old format)
+        if (!count && d.unread && typeof d.unread === 'object') {
+          count = d.unread[myKey] || 0;
         }
 
-        console.log('conv', doc.id, 'resolved unread:', count, 'raw:', JSON.stringify(unread));
+        console.log('conv', doc.id, 'count:', count, 'topKey:', topLevelKey, 'value:', d[topLevelKey]);
         totalUnread += count;
       });
 
@@ -3507,7 +3491,7 @@ function startUnreadListener() {
       if (badge1) {
         badge1.textContent = countStr;
         badge1.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
-        console.log('badge1 set to:', badge1.style.visibility);
+        console.log('badge1:', badge1.style.visibility, countStr);
       }
 
       var badge2 = document.getElementById('msg-topbar-badge');
@@ -3584,10 +3568,10 @@ function openChat(friendEmail, friendName, friendUsername) {
   var msgArea = document.getElementById('chat-messages');
   msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
 
-  // Mark only MY messages as read — not the other person's count
-  var clearMyUnread = {};
-  clearMyUnread['unread.' + emailKey(user.email)] = 0;
-  db.collection('conversations').doc(currentChatId).update(clearMyUnread).catch(function() {});
+  // Clear MY unread count when opening chat
+  var clearUpdate = {};
+  clearUpdate['unread.' + emailKey(user.email)] = 0;
+  db.collection('conversations').doc(currentChatId).update(clearUpdate).catch(function() {});
 
   // Real-time listener for messages
   if (msgUnsubscribe) msgUnsubscribe();
