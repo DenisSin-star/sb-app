@@ -1386,7 +1386,122 @@
     font-weight: 700;
   }
 
-  @keyframes shake {
+  /* ===== MESSENGER ===== */
+  .chat-input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .chat-textarea {
+    flex: 1;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 9px 14px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    resize: none;
+    min-height: 38px;
+    max-height: 100px;
+    line-height: 1.4;
+    transition: border-color 0.2s;
+  }
+
+  .chat-textarea:focus { border-color: var(--blue); background: var(--surface); }
+
+  .chat-send-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--blue);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .chat-send-btn:hover { background: var(--blue-dark); }
+  .chat-send-btn:active { transform: scale(0.95); }
+
+  .msg-bubble-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 75%;
+  }
+
+  .msg-bubble-wrap.mine { align-self: flex-end; align-items: flex-end; }
+  .msg-bubble-wrap.theirs { align-self: flex-start; align-items: flex-start; }
+
+  .msg-bubble {
+    padding: 9px 13px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .msg-bubble.mine {
+    background: var(--blue);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg-bubble.theirs {
+    background: var(--surface2);
+    color: var(--text);
+    border: 0.5px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 3px;
+    padding: 0 4px;
+  }
+
+  .conv-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 0.5px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .conv-item:hover { background: var(--surface2); }
+
+  .conv-av {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: #e8f0fe;
+    color: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .conv-name { font-size: 14px; font-weight: 600; }
+  .conv-preview { font-size: 13px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .conv-time { font-size: 11px; color: var(--text3); margin-left: auto; flex-shrink: 0; }
+  .conv-unread { background: var(--blue); color: #fff; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; margin-left: auto; }
+</style>
     0%,100% { transform: translateX(0); }
     15%      { transform: translateX(-6px); }
     35%      { transform: translateX(6px); }
@@ -1588,8 +1703,9 @@
     <div class="topbar">
       <div class="topbar-logo">sb</div>
       <div class="topbar-actions">
-        <button class="icon-btn" onclick="showToast('Messenger coming soon!')" title="Messages">
+        <button class="icon-btn" onclick="switchTab('messages')" title="Messages" id="msg-topbar-btn" style="position:relative">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span id="msg-topbar-badge" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--red);border-radius:50%;border:1.5px solid var(--surface)"></span>
         </button>
         <button class="icon-btn" onclick="showToast('No new notifications')" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -1823,6 +1939,59 @@
       </div>
     </div>
 
+    <!-- ===== MESSAGES SCREEN ===== -->
+    <div class="screen" id="screen-messages">
+      <!-- Conversations list -->
+      <div id="msg-list-view" style="display:flex;flex-direction:column;height:100%">
+        <div class="topbar" style="position:relative">
+          <div style="font-size:16px;font-weight:700">Messages</div>
+          <button class="icon-btn" onclick="showNewMessageModal()" title="New message" style="font-size:18px;font-weight:300">✏️</button>
+        </div>
+        <div class="scroll-area" id="conversations-list">
+          <div style="text-align:center;padding:48px 20px;color:var(--text3)" id="conv-empty">
+            <div style="font-size:36px;margin-bottom:10px">💬</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No messages yet</div>
+            <div style="font-size:13px">Start a conversation with a friend</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat view (individual conversation) -->
+      <div id="msg-chat-view" style="display:none;flex-direction:column;height:100%">
+        <div class="topbar" style="position:relative">
+          <button class="icon-btn" onclick="closeChatView()" style="margin-right:8px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div style="flex:1;display:flex;align-items:center;gap:10px">
+            <div class="av" id="chat-av" style="width:34px;height:34px;border-radius:50%;background:#e8f0fe;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--blue);flex-shrink:0"></div>
+            <div>
+              <div style="font-size:14px;font-weight:600" id="chat-name"></div>
+              <div style="font-size:11px;color:var(--text3)" id="chat-username"></div>
+            </div>
+          </div>
+        </div>
+        <div class="scroll-area" id="chat-messages" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px"></div>
+        <div class="chat-input-bar">
+          <textarea id="chat-input" class="chat-textarea" placeholder="Message…" rows="1" oninput="autoResizeChatInput(this)" onkeydown="chatKeydown(event)"></textarea>
+          <button class="chat-send-btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Message Modal -->
+    <div class="modal-overlay" id="new-msg-modal" style="display:none">
+      <div class="modal-box">
+        <h3>New message</h3>
+        <p style="margin-bottom:10px">Choose a friend to message</p>
+        <div id="new-msg-friends-list" style="max-height:240px;overflow-y:auto;margin-bottom:14px;border:0.5px solid var(--border);border-radius:var(--radius-sm)"></div>
+        <div class="modal-btns">
+          <button class="modal-cancel" onclick="closeNewMessageModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom tabs -->
     <div class="bottom-tabs">
       <button class="tab-btn active" id="tab-feed" onclick="switchTab('feed')">
@@ -1832,6 +2001,11 @@
       <button class="tab-btn" id="tab-friends" onclick="switchTab('friends')">
         <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Friends
+      </button>
+      <button class="tab-btn" id="tab-messages" onclick="switchTab('messages')" style="position:relative">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span id="msg-tab-badge" style="display:none;position:absolute;top:6px;right:calc(50% - 14px);width:8px;height:8px;background:var(--red);border-radius:50%"></span>
+        Messages
       </button>
       <button class="tab-btn" id="tab-market" onclick="switchTab('market')">
         <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
@@ -2308,6 +2482,7 @@ function initApp() {
   renderTicketPacks();
   renderSaved();
   checkRequestsBadge();
+  loadConversations();
 }
 
 function updateProfileUI() {
@@ -2397,6 +2572,12 @@ function switchTab(tab) {
     s.classList.remove('active');
   });
   document.getElementById('screen-' + tab).classList.add('active');
+
+  if (tab === 'messages') {
+    document.getElementById('msg-chat-view').style.display = 'none';
+    document.getElementById('msg-list-view').style.display = 'flex';
+    loadConversations();
+  }
 }
 
 // ============================================================
@@ -3123,6 +3304,214 @@ function changePassword() {
     document.getElementById('conf-pass').value = '';
     showPassMsg('✅ Password updated successfully!', true);
   });
+}
+
+// ============================================================
+// MESSENGER
+// ============================================================
+var currentChatId = null;      // active conversation ID
+var currentChatFriend = null;  // { name, username, email }
+var msgUnsubscribe = null;     // Firestore real-time listener
+var convUnsubscribe = null;    // conversations listener
+
+function getChatId(emailA, emailB) {
+  // Deterministic chat ID from two emails
+  return [emailA, emailB].sort().join('__').replace(/[@.]/g, '_');
+}
+
+function openMessenger() {
+  switchTab('messages');
+  loadConversations();
+}
+
+function loadConversations() {
+  if (!fbConfigured || !db || !user.email) return;
+  var list = document.getElementById('conversations-list');
+
+  if (convUnsubscribe) convUnsubscribe();
+
+  convUnsubscribe = db.collection('conversations')
+    .where('members', 'array-contains', user.email)
+    .orderBy('lastTs', 'desc')
+    .onSnapshot(function(snap) {
+      if (snap.empty) {
+        list.innerHTML =
+          '<div style="text-align:center;padding:48px 20px;color:var(--text3)" id="conv-empty">' +
+            '<div style="font-size:36px;margin-bottom:10px">💬</div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No messages yet</div>' +
+            '<div style="font-size:13px">Start a conversation with a friend</div>' +
+          '</div>';
+        return;
+      }
+      var unread = 0;
+      list.innerHTML = '';
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var friendEmail = d.members.find(function(m) { return m !== user.email; });
+        var friendName  = d.names  ? (d.names[friendEmail]  || friendEmail) : friendEmail;
+        var friendUser  = d.usernames ? (d.usernames[friendEmail] || '') : '';
+        var preview = d.lastMsg || '';
+        var ts = d.lastTs ? new Date(d.lastTs).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+        var myUnread = d.unread ? (d.unread[user.email] || 0) : 0;
+        if (myUnread > 0) unread++;
+
+        var div = document.createElement('div');
+        div.className = 'conv-item';
+        div.onclick = (function(fe, fn, fu) {
+          return function() { openChat(fe, fn, fu); };
+        })(friendEmail, friendName, friendUser);
+
+        div.innerHTML =
+          '<div class="conv-av">' + getInitials(friendName) + '</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="conv-name">' + friendName + '</div>' +
+            '<div class="conv-preview">' + (d.lastSender === user.email ? 'You: ' : '') + preview + '</div>' +
+          '</div>' +
+          (myUnread > 0
+            ? '<div class="conv-unread">' + myUnread + '</div>'
+            : '<div class="conv-time">' + ts + '</div>');
+        list.appendChild(div);
+      });
+
+      // Update badges
+      var badge1 = document.getElementById('msg-tab-badge');
+      var badge2 = document.getElementById('msg-topbar-badge');
+      if (badge1) badge1.style.display = unread > 0 ? 'block' : 'none';
+      if (badge2) badge2.style.display = unread > 0 ? 'block' : 'none';
+    }, function() {});
+}
+
+function openChat(friendEmail, friendName, friendUsername) {
+  currentChatFriend = { email: friendEmail, name: friendName, username: friendUsername };
+  currentChatId = getChatId(user.email, friendEmail);
+
+  document.getElementById('msg-list-view').style.display = 'none';
+  document.getElementById('msg-chat-view').style.display = 'flex';
+  document.getElementById('chat-av').textContent = getInitials(friendName);
+  document.getElementById('chat-name').textContent = friendName;
+  document.getElementById('chat-username').textContent = friendUsername ? '@' + friendUsername : '';
+
+  var msgArea = document.getElementById('chat-messages');
+  msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
+
+  // Mark messages as read
+  db.collection('conversations').doc(currentChatId).set(
+    { unread: {} }, { merge: true }
+  ).catch(function() {});
+
+  // Real-time listener for messages
+  if (msgUnsubscribe) msgUnsubscribe();
+  msgUnsubscribe = db.collection('conversations').doc(currentChatId)
+    .collection('messages')
+    .orderBy('ts', 'asc')
+    .onSnapshot(function(snap) {
+      if (snap.empty) {
+        msgArea.innerHTML =
+          '<div style="text-align:center;padding:32px 20px;color:var(--text3);font-size:13px">' +
+            'Say hello to ' + friendName + '! 👋</div>';
+        return;
+      }
+      msgArea.innerHTML = '';
+      snap.forEach(function(doc) {
+        var m = doc.data();
+        var mine = m.sender === user.email;
+        var time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+        var wrap = document.createElement('div');
+        wrap.className = 'msg-bubble-wrap ' + (mine ? 'mine' : 'theirs');
+        wrap.innerHTML =
+          '<div class="msg-bubble ' + (mine ? 'mine' : 'theirs') + '">' + escapeHtml(m.text) + '</div>' +
+          '<div class="msg-time">' + time + '</div>';
+        msgArea.appendChild(wrap);
+      });
+      msgArea.scrollTop = msgArea.scrollHeight;
+    }, function() {});
+
+  setTimeout(function() { document.getElementById('chat-input').focus(); }, 100);
+}
+
+function closeChatView() {
+  if (msgUnsubscribe) { msgUnsubscribe(); msgUnsubscribe = null; }
+  currentChatId = null;
+  currentChatFriend = null;
+  document.getElementById('msg-chat-view').style.display = 'none';
+  document.getElementById('msg-list-view').style.display = 'flex';
+  loadConversations();
+}
+
+function sendMessage() {
+  if (!currentChatId || !currentChatFriend) return;
+  var input = document.getElementById('chat-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  var now = Date.now();
+  var msgData = { text: text, sender: user.email, ts: now };
+
+  // Write message
+  db.collection('conversations').doc(currentChatId)
+    .collection('messages').add(msgData);
+
+  // Update conversation metadata
+  var unreadUpdate = {};
+  unreadUpdate['unread.' + currentChatFriend.email] = firebase.firestore.FieldValue.increment(1);
+
+  db.collection('conversations').doc(currentChatId).set({
+    members:    [user.email, currentChatFriend.email],
+    names:      (function() { var o = {}; o[user.email] = user.name; o[currentChatFriend.email] = currentChatFriend.name; return o; })(),
+    usernames:  (function() { var o = {}; o[user.email] = user.username || ''; o[currentChatFriend.email] = currentChatFriend.username || ''; return o; })(),
+    lastMsg:    text,
+    lastSender: user.email,
+    lastTs:     now
+  }, { merge: true }).then(function() {
+    return db.collection('conversations').doc(currentChatId).update(unreadUpdate);
+  }).catch(function() {});
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResizeChatInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function showNewMessageModal() {
+  var friendsList = user.friendsList || [];
+  var listEl = document.getElementById('new-msg-friends-list');
+  if (friendsList.length === 0) {
+    listEl.innerHTML = '<div style="padding:14px;font-size:13px;color:var(--text3);text-align:center">You have no friends yet.<br>Add friends first!</div>';
+  } else {
+    listEl.innerHTML = friendsList.map(function(f) {
+      return '<div class="conv-item" style="cursor:pointer" onclick="startNewChat(\'' +
+        f.email.replace(/'/g,"\\'") + '\',\'' +
+        f.name.replace(/'/g,"\\'") + '\',\'' +
+        (f.username||'').replace(/'/g,"\\'") + '\')">' +
+        '<div class="conv-av">' + getInitials(f.name) + '</div>' +
+        '<div><div class="conv-name">' + f.name + '</div>' +
+        (f.username ? '<div style="font-size:12px;color:var(--blue)">@' + f.username + '</div>' : '') +
+        '</div></div>';
+    }).join('');
+  }
+  document.getElementById('new-msg-modal').style.display = 'flex';
+}
+
+function closeNewMessageModal() {
+  document.getElementById('new-msg-modal').style.display = 'none';
+}
+
+function startNewChat(email, name, username) {
+  closeNewMessageModal();
+  openChat(email, name, username);
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ============================================================
