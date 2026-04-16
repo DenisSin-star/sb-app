@@ -1844,18 +1844,30 @@ if (emailJSConfigured) {
 // ============================================================
 // PERSISTENCE
 // ============================================================
+// Accounts are stored as a dictionary: { email: { name, username, password, ... } }
+// This means ANY registered user can log in from any device/session on the same origin.
+
 function saveUserData() {
   try {
-    localStorage.setItem('sb_user', JSON.stringify(user));
+    // Save current logged-in user's full data
+    var accounts = getAccounts();
+    accounts[user.email.toLowerCase()] = JSON.parse(JSON.stringify(user));
+    localStorage.setItem('sb_accounts', JSON.stringify(accounts));
     localStorage.setItem('sb_registered', JSON.stringify(registeredUsers));
+    localStorage.setItem('sb_session', user.email.toLowerCase()); // remember who is logged in
   } catch(e) {}
+}
+
+function getAccounts() {
+  try {
+    var a = localStorage.getItem('sb_accounts');
+    return a ? JSON.parse(a) : {};
+  } catch(e) { return {}; }
 }
 
 function loadUserData() {
   try {
-    var u = localStorage.getItem('sb_user');
     var r = localStorage.getItem('sb_registered');
-    if (u) user = JSON.parse(u);
     if (r) registeredUsers = JSON.parse(r);
   } catch(e) {}
 }
@@ -2120,18 +2132,27 @@ function login() {
 
   if (!email || !pass) { showError('Please fill in all fields.'); return; }
 
-  // Reload latest data from localStorage first
+  // Load latest registered list
   loadUserData();
 
-  var found = registeredUsers.find(function(u) { return u.email.toLowerCase() === email; });
-  if (!found) { showError('No account found with this email. Please register first.'); return; }
+  // Look up in the accounts dictionary
+  var accounts = getAccounts();
+  var account = accounts[email];
 
-  if (user.email.toLowerCase() === email && user.password === pass) {
-    launchApp();
-    showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
-  } else {
-    showError('Wrong password. Please try again.');
+  if (!account) {
+    showError('No account found with this email. Please register first.');
+    return;
   }
+
+  if (account.password !== pass) {
+    showError('Wrong password. Please try again.');
+    return;
+  }
+
+  // ✅ Correct — load this account as the active user
+  user = account;
+  launchApp();
+  showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
 }
 
 function showLogin() {
@@ -2149,6 +2170,7 @@ function showRegister() {
 }
 
 function logout() {
+  try { localStorage.removeItem('sb_session'); } catch(e) {}
   document.getElementById('app').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('login-form').style.display = 'none';
@@ -2808,16 +2830,23 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// On page load — restore saved data and auto-login if session was active
+// On page load — restore saved data and auto-login if session exists
 (function() {
   loadUserData();
-  if (user.email && user.verified) {
-    // User was logged in before — take them straight to the app
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    document.getElementById('app').style.flexDirection = 'column';
-    initApp();
-  }
+  try {
+    var session = localStorage.getItem('sb_session');
+    if (session) {
+      var accounts = getAccounts();
+      var account = accounts[session];
+      if (account && account.verified) {
+        user = account;
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        document.getElementById('app').style.flexDirection = 'column';
+        initApp();
+      }
+    }
+  } catch(e) {}
 })();
 </script>
 </body>
