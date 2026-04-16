@@ -1603,7 +1603,7 @@
         <h2>Friends</h2>
         <div class="search-box">
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="friend-search" placeholder="Search by name or @username..." oninput="searchFriends(this.value)">
+          <input type="text" id="friend-search" placeholder="Search by name or @username..." oninput="debouncedSearch(this.value)">
         </div>
       </div>
       <div class="scroll-area">
@@ -2537,15 +2537,20 @@ function sendFriendRequest(btn, name) {
   showToast('Friend request sent to ' + name + '!');
 }
 
+var searchDebounceTimer = null;
+function debouncedSearch(val) {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(function() { searchFriends(val); }, 500);
+}
+
 function searchFriends(query) {
   var q = query.toLowerCase().trim();
-  // Strip leading @ for username search
   var qClean = q.startsWith('@') ? q.slice(1) : q;
   var sugSection = document.getElementById('suggestions-section');
-  var srSection = document.getElementById('search-results-section');
-  var srList = document.getElementById('search-results-list');
+  var srSection  = document.getElementById('search-results-section');
+  var srList     = document.getElementById('search-results-list');
 
-  if (!q) {
+  if (!qClean) {
     sugSection.style.display = 'block';
     srSection.classList.add('hidden');
     srList.innerHTML = '';
@@ -2554,35 +2559,63 @@ function searchFriends(query) {
 
   sugSection.style.display = 'none';
   srSection.classList.remove('hidden');
+  srList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Searching…</div>';
 
-  // Search by name, username, or email — only real registered users, not yourself
-  var results = registeredUsers.filter(function(p) {
-    return p.email !== user.email && (
-      p.name.toLowerCase().includes(qClean) ||
-      (p.username && p.username.toLowerCase().includes(qClean)) ||
-      p.email.toLowerCase().includes(qClean)
-    );
-  });
-
-  if (results.length === 0) {
-    srList.innerHTML = '<div class="no-results">No registered users found for "' + query + '"<br><span style="font-size:12px">Try searching by name or @username</span></div>';
+  if (!fbConfigured || !db) {
+    srList.innerHTML = '<div class="no-results">Firebase not connected — cannot search users.</div>';
     return;
   }
 
-  srList.innerHTML = results.map(function(f) {
-    var state = friendStates[f.name];
-    var btn = state === 'sent'
-      ? '<button class="btn-sent">Request sent</button>'
-      : state === 'friends'
-      ? '<button class="btn-sent">Friends ✓</button>'
-      : '<button class="btn-add" onclick="sendFriendRequest(this, \'' + f.name.replace(/'/g, "\\'") + '\')">+ Add friend</button>';
-    var usernameHtml = f.username ? '<div class="friend-sub" style="color:var(--blue)">@' + f.username + '</div>' : '';
-    return '<div class="friend-item">' +
-      '<div class="friend-av" style="background:' + (f.bg || '#e8f0fe') + ';color:' + (f.tc || '#1a56db') + '">' + f.initials + '</div>' +
-      '<div class="friend-info"><div class="friend-name">' + f.name + '</div>' + usernameHtml + '</div>' +
-      btn +
-    '</div>';
-  }).join('');
+  // Query Firestore for users whose username matches
+  db.collection('users').where('username', '==', qClean).get()
+    .then(function(snapshot) {
+      var results = [];
+      snapshot.forEach(function(doc) {
+        var d = doc.data();
+        if (d.email !== user.email) results.push(d);
+      });
+
+      // If no username match, try searching by name (prefix)
+      if (results.length === 0) {
+        return db.collection('users').get().then(function(all) {
+          var nameResults = [];
+          all.forEach(function(doc) {
+            var d = doc.data();
+            if (d.email !== user.email &&
+               (d.name.toLowerCase().includes(qClean) ||
+                (d.username && d.username.toLowerCase().includes(qClean)))) {
+              nameResults.push(d);
+            }
+          });
+          return nameResults;
+        });
+      }
+      return results;
+    })
+    .then(function(results) {
+      if (!results || results.length === 0) {
+        srList.innerHTML = '<div class="no-results">No users found for "' + query + '"<br><span style="font-size:12px">Make sure they have registered on sb</span></div>';
+        return;
+      }
+      srList.innerHTML = results.map(function(f) {
+        var initials = getInitials(f.name);
+        var state = friendStates[f.username || f.name];
+        var btn = state === 'sent'
+          ? '<button class="btn-sent">Request sent</button>'
+          : state === 'friends'
+          ? '<button class="btn-sent">Friends ✓</button>'
+          : '<button class="btn-add" onclick="sendFriendRequest(this, \'' + (f.username || f.name).replace(/'/g, "\\'") + '\')">+ Add friend</button>';
+        var usernameHtml = f.username ? '<div class="friend-sub" style="color:var(--blue)">@' + f.username + '</div>' : '';
+        return '<div class="friend-item">' +
+          '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + initials + '</div>' +
+          '<div class="friend-info"><div class="friend-name">' + f.name + '</div>' + usernameHtml + '</div>' +
+          btn +
+        '</div>';
+      }).join('');
+    })
+    .catch(function(err) {
+      srList.innerHTML = '<div class="no-results">Search failed. Please try again.</div>';
+    });
 }
 
 // ============================================================
