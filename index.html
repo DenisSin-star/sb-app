@@ -1501,7 +1501,8 @@
   .conv-preview { font-size: 13px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
   .conv-time { font-size: 11px; color: var(--text3); margin-left: auto; flex-shrink: 0; }
   .conv-unread { background: var(--blue); color: #fff; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; margin-left: auto; }
-</style>
+
+  @keyframes shake {
     0%,100% { transform: translateX(0); }
     15%      { transform: translateX(-6px); }
     35%      { transform: translateX(6px); }
@@ -1705,7 +1706,7 @@
       <div class="topbar-actions">
         <button class="icon-btn" onclick="switchTab('messages')" title="Messages" id="msg-topbar-btn" style="position:relative">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          <span id="msg-topbar-badge" style="display:none;position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--red);border-radius:50%;border:1.5px solid var(--surface)"></span>
+          <span id="msg-topbar-badge" style="visibility:hidden;position:absolute;top:3px;right:3px;width:9px;height:9px;background:var(--red);border-radius:50%;border:1.5px solid var(--surface);display:block"></span>
         </button>
         <button class="icon-btn" onclick="showToast('No new notifications')" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -2004,7 +2005,7 @@
       </button>
       <button class="tab-btn" id="tab-messages" onclick="switchTab('messages')" style="position:relative">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span id="msg-tab-badge" style="display:none;position:absolute;top:6px;right:calc(50% - 14px);width:8px;height:8px;background:var(--red);border-radius:50%"></span>
+        <span id="msg-tab-badge" style="visibility:hidden;position:absolute;top:4px;right:calc(50% - 20px);background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;line-height:1">0</span>
         Messages
       </button>
       <button class="tab-btn" id="tab-market" onclick="switchTab('market')">
@@ -2231,16 +2232,39 @@ function register() {
   var btn = document.getElementById('reg-btn');
   if (btn) { btn.textContent = 'Checking…'; btn.disabled = true; }
 
-  // Check Firebase directly — ignore stale localStorage
-  loadUserFromFirebase(email, function(existing) {
-    if (btn) { btn.textContent = 'Create account'; btn.disabled = false; }
-    if (existing) {
+  // 1. Check email taken
+  loadUserFromFirebase(email, function(existingEmail) {
+    if (existingEmail) {
+      if (btn) { btn.textContent = 'Create account'; btn.disabled = false; }
       showError('An account with this email already exists. Please log in.');
       return;
     }
-    pendingUser = { name: name, username: username, email: email, password: pass };
-    sendVerificationCode(email);
-    showVerifyScreen(email);
+
+    if (!fbConfigured || !db) {
+      // No Firebase — skip username check
+      if (btn) { btn.textContent = 'Create account'; btn.disabled = false; }
+      pendingUser = { name: name, username: username, email: email, password: pass };
+      sendVerificationCode(email);
+      showVerifyScreen(email);
+      return;
+    }
+
+    // 2. Check username taken in Firebase
+    db.collection('users').where('username', '==', username).get()
+      .then(function(snap) {
+        if (btn) { btn.textContent = 'Create account'; btn.disabled = false; }
+        if (!snap.empty) {
+          showError('@' + username + ' is already taken. Please choose a different username.');
+          return;
+        }
+        pendingUser = { name: name, username: username, email: email, password: pass };
+        sendVerificationCode(email);
+        showVerifyScreen(email);
+      })
+      .catch(function() {
+        if (btn) { btn.textContent = 'Create account'; btn.disabled = false; }
+        showError('Could not verify username. Please try again.');
+      });
   });
 }
 
@@ -2432,7 +2456,19 @@ function login() {
     }
     // ✅ Success
     user = account;
-    saveUserLocal(); // cache locally too
+    // Deduplicate friendsList to fix any old duplicates
+    if (user.friendsList && user.friendsList.length > 0) {
+      var seen = {};
+      user.friendsList = user.friendsList.filter(function(f) {
+        if (!f.email || seen[f.email]) return false;
+        seen[f.email] = true;
+        return true;
+      });
+      user.friends = user.friendsList.length;
+      // Save the cleaned list back to Firebase silently
+      saveUserToFirebase(null);
+    }
+    saveUserLocal();
     launchApp();
     showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
   });
@@ -2483,6 +2519,7 @@ function initApp() {
   renderSaved();
   checkRequestsBadge();
   loadConversations();
+  startUnreadListener();
 }
 
 function updateProfileUI() {
@@ -2847,77 +2884,153 @@ function loadMyFriendsTab() {
     return;
   }
 
-  // Friends stored on user doc
-  var friends = user.friendsList || [];
-  if (friends.length === 0) {
-    list.innerHTML =
-      '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
-        '<div style="font-size:32px;margin-bottom:10px">👋</div>' +
-        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No friends yet</div>' +
-        '<div style="font-size:13px">Find people using the Find tab!</div>' +
-      '</div>';
-    return;
-  }
+  // Always fetch fresh from Firebase so we get the latest deduplicated list
+  db.collection('users').doc(user.email).get()
+    .then(function(doc) {
+      var freshData = doc.exists ? doc.data() : user;
+      var raw = freshData.friendsList || [];
 
-  list.innerHTML = '';
-  friends.forEach(function(f) {
-    var div = document.createElement('div');
-    div.className = 'friend-item';
-    div.innerHTML =
-      '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + getInitials(f.name) + '</div>' +
-      '<div class="friend-info"><div class="friend-name">' + f.name + '</div><div class="friend-sub" style="color:var(--blue)">@' + (f.username || '') + '</div></div>' +
-      '<button class="btn-sent">Friends ✓</button>';
-    list.appendChild(div);
-  });
+      // Deduplicate by email
+      var seen = {};
+      var friends = raw.filter(function(f) {
+        if (!f.email || seen[f.email]) return false;
+        seen[f.email] = true;
+        return true;
+      });
+
+      // If duplicates were found, save the clean list back to Firebase
+      if (friends.length !== raw.length) {
+        user.friendsList = friends;
+        user.friends = friends.length;
+        db.collection('users').doc(user.email).update({ friendsList: friends, friends: friends.length }).catch(function(){});
+        saveUserLocal();
+        document.getElementById('stat-friends').textContent = friends.length;
+      } else {
+        user.friendsList = friends;
+        user.friends = friends.length;
+      }
+
+      if (friends.length === 0) {
+        list.innerHTML =
+          '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
+            '<div style="font-size:32px;margin-bottom:10px">👋</div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No friends yet</div>' +
+            '<div style="font-size:13px">Find people using the Find tab!</div>' +
+          '</div>';
+        return;
+      }
+
+      list.innerHTML = '';
+      friends.forEach(function(f) {
+        var div = document.createElement('div');
+        div.className = 'friend-item';
+        div.innerHTML =
+          '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + getInitials(f.name) + '</div>' +
+          '<div class="friend-info"><div class="friend-name">' + f.name + '</div><div class="friend-sub" style="color:var(--blue)">@' + (f.username || '') + '</div></div>' +
+          '<button class="btn-sent">Friends ✓</button>';
+        list.appendChild(div);
+      });
+    })
+    .catch(function() {
+      list.innerHTML = '<div style="padding:12px 16px;font-size:13px;color:var(--text3)">Could not load friends.</div>';
+    });
 }
 
 function sendFriendRequest(btn, username) {
   if (!fbConfigured || !db) { showToast('Firebase not connected'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
 
-  // Find the target user
   db.collection('users').where('username', '==', username).get()
     .then(function(snap) {
-      if (snap.empty) { showToast('User not found'); return; }
+      if (snap.empty) {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Add friend'; }
+        showToast('User not found');
+        return;
+      }
       var targetData = snap.docs[0].data();
 
-      // Write request to Firestore
-      return db.collection('friendRequests').add({
-        fromEmail:    user.email,
-        fromName:     user.name,
-        fromUsername: user.username || '',
-        toEmail:      targetData.email,
-        toName:       targetData.name,
-        toUsername:   targetData.username || '',
-        status:       'pending',
-        createdAt:    Date.now()
+      // 1. Check if already friends
+      var alreadyFriend = (user.friendsList || []).find(function(f) {
+        return f.email === targetData.email;
       });
+      if (alreadyFriend) {
+        if (btn) btn.outerHTML = '<button class="btn-sent">Friends ✓</button>';
+        showToast('You are already friends!');
+        return;
+      }
+
+      // 2. Check if request already sent (pending)
+      return db.collection('friendRequests')
+        .where('fromEmail', '==', user.email)
+        .where('toEmail', '==', targetData.email)
+        .where('status', '==', 'pending')
+        .get()
+        .then(function(existing) {
+          if (!existing.empty) {
+            if (btn) btn.outerHTML = '<button class="btn-sent">Request sent</button>';
+            showToast('You already sent a request to this person!');
+            return;
+          }
+
+          // 3. Check if they already sent us a request
+          return db.collection('friendRequests')
+            .where('fromEmail', '==', targetData.email)
+            .where('toEmail', '==', user.email)
+            .where('status', '==', 'pending')
+            .get()
+            .then(function(incoming) {
+              if (!incoming.empty) {
+                if (btn) btn.outerHTML = '<button class="btn-sent">They sent you a request!</button>';
+                showToast('They already sent you a friend request — check your Requests tab!');
+                return;
+              }
+
+              // ✅ All clear — send the request
+              return db.collection('friendRequests').add({
+                fromEmail:    user.email,
+                fromName:     user.name,
+                fromUsername: user.username || '',
+                toEmail:      targetData.email,
+                toName:       targetData.name,
+                toUsername:   targetData.username || '',
+                status:       'pending',
+                createdAt:    Date.now()
+              }).then(function() {
+                friendStates[username] = 'sent';
+                if (btn) btn.outerHTML = '<button class="btn-sent">Request sent</button>';
+                showToast('Friend request sent! 👋');
+              });
+            });
+        });
     })
-    .then(function() {
-      friendStates[username] = 'sent';
-      if (btn) btn.outerHTML = '<button class="btn-sent">Request sent</button>';
-      showToast('Friend request sent! 👋');
-    })
-    .catch(function() { showToast('Could not send request. Try again.'); });
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = '+ Add friend'; }
+      showToast('Could not send request. Try again.');
+    });
 }
 
 function acceptFriendRequest(docId, fromEmail, fromName) {
   if (!fbConfigured || !db) return;
 
-  // Get sender's data
   db.collection('users').doc(fromEmail).get()
     .then(function(doc) {
       var sender = doc.exists ? doc.data() : { name: fromName, username: '', email: fromEmail };
 
-      // Add each other to friendsList
+      // Build deduplicated friends lists
       var myFriends = user.friendsList || [];
-      myFriends.push({ name: sender.name, username: sender.username || '', email: sender.email });
+      var alreadyInMyList = myFriends.find(function(f) { return f.email === sender.email; });
+      if (!alreadyInMyList) {
+        myFriends = myFriends.concat([{ name: sender.name, username: sender.username || '', email: sender.email }]);
+      }
       user.friendsList = myFriends;
       user.friends = myFriends.length;
 
       var theirFriends = sender.friendsList || [];
-      theirFriends.push({ name: user.name, username: user.username || '', email: user.email });
+      var alreadyInTheirList = theirFriends.find(function(f) { return f.email === user.email; });
+      if (!alreadyInTheirList) {
+        theirFriends = theirFriends.concat([{ name: user.name, username: user.username || '', email: user.email }]);
+      }
 
-      // Update both users and mark request accepted
       var batch = db.batch();
       batch.update(db.collection('users').doc(user.email), { friendsList: myFriends, friends: myFriends.length });
       batch.update(db.collection('users').doc(fromEmail), { friendsList: theirFriends, friends: theirFriends.length });
@@ -2929,7 +3042,6 @@ function acceptFriendRequest(docId, fromEmail, fromName) {
       document.getElementById('stat-friends').textContent = user.friends;
       var el = document.getElementById('req-' + docId);
       if (el) el.remove();
-      // Update badge
       var remaining = document.querySelectorAll('#incoming-requests-list .friend-item').length;
       if (remaining === 0) {
         document.getElementById('req-badge').style.display = 'none';
@@ -3237,16 +3349,33 @@ function saveProfileEdits() {
     if (user.lastUsernameChange && (now - user.lastUsernameChange) < MONTH_MS) {
       var usernameLeft = msToReadable(MONTH_MS - (now - user.lastUsernameChange));
       showToast('🔒 Username locked — try again in ' + usernameLeft);
-      document.getElementById('edit-username').value = user.username; // revert
+      document.getElementById('edit-username').value = user.username;
       return;
     }
-    // Check username not taken by someone else
-    var taken = registeredUsers.find(function(u) { return u.username === newUsername && u.email !== user.email; });
-    if (taken) { showToast('@' + newUsername + ' is already taken'); return; }
 
-    // Update in registeredUsers list too
-    var me = registeredUsers.find(function(u) { return u.email === user.email; });
-    if (me) me.username = newUsername;
+    // Check username not taken in Firebase
+    if (fbConfigured && db) {
+      db.collection('users').where('username', '==', newUsername).get()
+        .then(function(snap) {
+          var takenByOther = false;
+          snap.forEach(function(doc) {
+            if (doc.data().email !== user.email) takenByOther = true;
+          });
+          if (takenByOther) {
+            showToast('@' + newUsername + ' is already taken. Choose another.');
+            document.getElementById('edit-username').value = user.username;
+            return;
+          }
+          user.username = newUsername;
+          user.lastUsernameChange = now;
+          if (newName !== user.name) { user.name = newName; user.lastNameChange = now; }
+          var meRecord = registeredUsers.find(function(u) { return u.email === user.email; });
+          if (meRecord) { meRecord.name = user.name; meRecord.initials = getInitials(user.name); }
+          saveUserToFirebase(function() { updateProfileUI(); showToast('Profile updated! ✅'); });
+        })
+        .catch(function() { showToast('Could not verify username. Try again.'); });
+      return; // async path handles saving
+    }
 
     user.username = newUsername;
     user.lastUsernameChange = now;
@@ -3257,7 +3386,7 @@ function saveProfileEdits() {
     var meRecord = registeredUsers.find(function(u) { return u.email === user.email; });
     if (meRecord) { meRecord.name = user.name; meRecord.initials = getInitials(user.name); }
     saveUserToFirebase(function() { updateProfileUI(); showToast('Profile updated! ✅'); });
-  } else {
+  } else if (newName !== user.username) {
     showToast('No changes to save');
   }
 }
@@ -3309,14 +3438,46 @@ function changePassword() {
 // ============================================================
 // MESSENGER
 // ============================================================
-var currentChatId = null;      // active conversation ID
-var currentChatFriend = null;  // { name, username, email }
-var msgUnsubscribe = null;     // Firestore real-time listener
-var convUnsubscribe = null;    // conversations listener
+var currentChatId = null;
+var currentChatFriend = null;
+var msgUnsubscribe = null;
+var convUnsubscribe = null;
+var unreadListenerUnsub = null; // persistent background listener
 
 function getChatId(emailA, emailB) {
-  // Deterministic chat ID from two emails
   return [emailA, emailB].sort().join('__').replace(/[@.]/g, '_');
+}
+
+// Start a persistent real-time listener for unread counts — runs on all tabs
+function startUnreadListener() {
+  if (!fbConfigured || !db || !user.email) return;
+  if (unreadListenerUnsub) unreadListenerUnsub();
+
+  unreadListenerUnsub = db.collection('conversations')
+    .where('members', 'array-contains', user.email)
+    .onSnapshot(function(snap) {
+      var totalUnread = 0;
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var myUnread = d.unread ? (d.unread[user.email] || 0) : 0;
+        totalUnread += myUnread;
+      });
+
+      var count = totalUnread > 9 ? '9+' : String(totalUnread);
+
+      // Tab badge
+      var badge1 = document.getElementById('msg-tab-badge');
+      if (badge1) {
+        badge1.textContent = count;
+        badge1.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
+      }
+
+      // Topbar dot
+      var badge2 = document.getElementById('msg-topbar-badge');
+      if (badge2) {
+        badge2.style.visibility = totalUnread > 0 ? 'visible' : 'hidden';
+      }
+    }, function() {});
 }
 
 function openMessenger() {
@@ -3343,17 +3504,15 @@ function loadConversations() {
           '</div>';
         return;
       }
-      var unread = 0;
       list.innerHTML = '';
       snap.forEach(function(doc) {
         var d = doc.data();
         var friendEmail = d.members.find(function(m) { return m !== user.email; });
-        var friendName  = d.names  ? (d.names[friendEmail]  || friendEmail) : friendEmail;
-        var friendUser  = d.usernames ? (d.usernames[friendEmail] || '') : '';
-        var preview = d.lastMsg || '';
-        var ts = d.lastTs ? new Date(d.lastTs).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+        var friendName  = d.names     ? (d.names[friendEmail]     || friendEmail) : friendEmail;
+        var friendUser  = d.usernames ? (d.usernames[friendEmail] || '')          : '';
+        var preview  = d.lastMsg || '';
+        var ts       = d.lastTs ? new Date(d.lastTs).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
         var myUnread = d.unread ? (d.unread[user.email] || 0) : 0;
-        if (myUnread > 0) unread++;
 
         var div = document.createElement('div');
         div.className = 'conv-item';
@@ -3368,16 +3527,10 @@ function loadConversations() {
             '<div class="conv-preview">' + (d.lastSender === user.email ? 'You: ' : '') + preview + '</div>' +
           '</div>' +
           (myUnread > 0
-            ? '<div class="conv-unread">' + myUnread + '</div>'
+            ? '<div class="conv-unread">' + (myUnread > 9 ? '9+' : myUnread) + '</div>'
             : '<div class="conv-time">' + ts + '</div>');
         list.appendChild(div);
       });
-
-      // Update badges
-      var badge1 = document.getElementById('msg-tab-badge');
-      var badge2 = document.getElementById('msg-topbar-badge');
-      if (badge1) badge1.style.display = unread > 0 ? 'block' : 'none';
-      if (badge2) badge2.style.display = unread > 0 ? 'block' : 'none';
     }, function() {});
 }
 
@@ -3394,10 +3547,10 @@ function openChat(friendEmail, friendName, friendUsername) {
   var msgArea = document.getElementById('chat-messages');
   msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
 
-  // Mark messages as read
-  db.collection('conversations').doc(currentChatId).set(
-    { unread: {} }, { merge: true }
-  ).catch(function() {});
+  // Mark only MY messages as read — not the other person's count
+  var clearMyUnread = {};
+  clearMyUnread['unread.' + user.email] = 0;
+  db.collection('conversations').doc(currentChatId).update(clearMyUnread).catch(function() {});
 
   // Real-time listener for messages
   if (msgUnsubscribe) msgUnsubscribe();
@@ -3431,6 +3584,12 @@ function openChat(friendEmail, friendName, friendUsername) {
 
 function closeChatView() {
   if (msgUnsubscribe) { msgUnsubscribe(); msgUnsubscribe = null; }
+  // Clear my unread for this chat when leaving
+  if (currentChatId) {
+    var clearMyUnread = {};
+    clearMyUnread['unread.' + user.email] = 0;
+    db.collection('conversations').doc(currentChatId).update(clearMyUnread).catch(function() {});
+  }
   currentChatId = null;
   currentChatFriend = null;
   document.getElementById('msg-chat-view').style.display = 'none';
@@ -3447,26 +3606,39 @@ function sendMessage() {
   input.style.height = 'auto';
 
   var now = Date.now();
-  var msgData = { text: text, sender: user.email, ts: now };
 
-  // Write message
+  // Write message to subcollection
   db.collection('conversations').doc(currentChatId)
-    .collection('messages').add(msgData);
+    .collection('messages').add({ text: text, sender: user.email, ts: now })
+    .catch(function() {});
 
-  // Update conversation metadata
-  var unreadUpdate = {};
-  unreadUpdate['unread.' + currentChatFriend.email] = firebase.firestore.FieldValue.increment(1);
-
-  db.collection('conversations').doc(currentChatId).set({
-    members:    [user.email, currentChatFriend.email],
-    names:      (function() { var o = {}; o[user.email] = user.name; o[currentChatFriend.email] = currentChatFriend.name; return o; })(),
-    usernames:  (function() { var o = {}; o[user.email] = user.username || ''; o[currentChatFriend.email] = currentChatFriend.username || ''; return o; })(),
+  // Build the unread increment key for the recipient
+  var recipientKey = 'unread.' + currentChatFriend.email;
+  var update = {
     lastMsg:    text,
     lastSender: user.email,
     lastTs:     now
-  }, { merge: true }).then(function() {
-    return db.collection('conversations').doc(currentChatId).update(unreadUpdate);
-  }).catch(function() {});
+  };
+  update[recipientKey] = firebase.firestore.FieldValue.increment(1);
+
+  // names and usernames only needed on first message — use set with merge
+  var meta = {
+    members:   [user.email, currentChatFriend.email],
+    names:     {},
+    usernames: {}
+  };
+  meta.names[user.email]               = user.name;
+  meta.names[currentChatFriend.email]  = currentChatFriend.name;
+  meta.usernames[user.email]              = user.username || '';
+  meta.usernames[currentChatFriend.email] = currentChatFriend.username || '';
+
+  // First ensure doc exists with member/name data, then increment unread atomically
+  db.collection('conversations').doc(currentChatId)
+    .set(meta, { merge: true })
+    .then(function() {
+      return db.collection('conversations').doc(currentChatId).update(update);
+    })
+    .catch(function() {});
 }
 
 function chatKeydown(e) {
