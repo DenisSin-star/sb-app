@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>sb — social</title>
+<title>socialbook</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap');
 
@@ -1606,7 +1606,7 @@
   <div id="auth-screen">
     <div class="auth-card">
       <div class="auth-logo">sb</div>
-      <div class="auth-tagline">Connect with people who actually exist</div>
+      <div class="auth-tagline">The social network for real people</div>
 
       <div id="auth-error" class="auth-error"></div>
 
@@ -1783,7 +1783,7 @@
           <div id="search-results-list">
             <div style="text-align:center;padding:40px 20px;color:var(--text3)">
               <div style="font-size:32px;margin-bottom:10px">🔍</div>
-              <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on sb</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on socialbook</div>
               <div style="font-size:13px">Search by name or @username</div>
             </div>
           </div>
@@ -2401,7 +2401,7 @@ function verifyCode() {
   pendingUser = null;
   saveUserToFirebase(function() {
     launchApp();
-    showToast('Email verified! Welcome to sb, ' + user.name.split(' ')[0] + '! 🎉');
+    showToast('Email verified! Welcome to socialbook, ' + user.name.split(' ')[0] + '! 🎉');
   });
 }
 
@@ -3219,7 +3219,7 @@ function searchFriends(query) {
     srList.innerHTML =
       '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
         '<div style="font-size:32px;margin-bottom:10px">🔍</div>' +
-        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on sb</div>' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on socialbook</div>' +
         '<div style="font-size:13px">Search by name or @username</div>' +
       '</div>';
     return;
@@ -3261,7 +3261,7 @@ function searchFriends(query) {
       if (!results || results.length === 0) {
         srList.innerHTML =
           '<div class="no-results">No users found for "' + query + '"<br>' +
-          '<span style="font-size:12px">Make sure they have registered on sb</span></div>';
+          '<span style="font-size:12px">Make sure they have registered on socialbook</span></div>';
         return;
       }
       srList.innerHTML = results.map(function(f) {
