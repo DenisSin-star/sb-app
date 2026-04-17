@@ -1629,33 +1629,33 @@
           <input class="field" id="reg-email" type="email" placeholder="you@example.com" autocomplete="email">
         </div>
         <div class="field-group">
-          <label>Password</label>
-          <input class="field" id="reg-pass" type="password" placeholder="Minimum 6 characters" autocomplete="new-password">
+          <label>Password <span style="color:var(--text3);font-weight:400;font-size:12px">— optional, for password login</span></label>
+          <div style="position:relative">
+            <input class="field" id="reg-pass" type="password" placeholder="Min 6 characters (optional)" autocomplete="new-password" style="padding-right:42px">
+            <button onclick="togglePassVis('reg-pass','eye-reg')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px" id="eye-reg">👁</button>
+          </div>
         </div>
-        <button class="btn-primary" id="reg-btn" onclick="register()">Create account</button>
+        <button class="btn-primary" id="reg-btn" onclick="register()">Send verification code</button>
         <div class="auth-divider">or</div>
         <button class="btn-ghost" onclick="showLogin()">Log in to existing account</button>
       </div>
 
-      <!-- VERIFICATION STEP -->
+      <!-- VERIFICATION STEP — used for both registration AND login -->
       <div id="verify-form" style="display:none">
         <div class="verify-icon">📧</div>
-        <div class="auth-title" style="text-align:center;margin-bottom:6px">Check your email</div>
+        <div class="auth-title" style="text-align:center;margin-bottom:6px" id="verify-title">Check your email</div>
         <p style="text-align:center;font-size:13px;color:var(--text2);margin-bottom:4px">We sent a 6-digit code to</p>
         <div style="text-align:center"><span class="verify-email-highlight" id="verify-email-display"></span></div>
 
-        <!-- Fallback: shown only if EmailJS fails to send -->
         <div id="setup-banner" style="display:none;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">
           Your code: <strong id="dev-code-display" style="letter-spacing:3px;font-size:16px"></strong>
         </div>
 
-        <!-- Sending spinner -->
         <div id="sending-status" style="text-align:center;padding:12px 0;font-size:13px;color:var(--text2);display:none">
           <div class="send-spinner"></div>
           Sending code to your inbox…
         </div>
 
-        <!-- Sent confirmation -->
         <div id="sent-confirm" style="display:none;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">
           ✅ Code sent! Check your inbox (and spam folder just in case).
         </div>
@@ -1669,30 +1669,52 @@
           <input class="code-input" id="c5" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" oninput="handleCodeInput(5)" onkeydown="handleCodeKey(5,event)">
         </div>
 
-        <button class="btn-primary" id="verify-btn" onclick="verifyCode()" style="margin-top:8px">Verify account</button>
+        <button class="btn-primary" id="verify-btn" onclick="verifyCode()" style="margin-top:8px">Verify</button>
 
         <div class="resend-row">
           Didn't get it? <span id="resend-btn" onclick="resendCode()">Resend code</span>
           <span id="resend-timer" style="display:none"> in <span id="resend-countdown">60</span>s</span>
         </div>
         <div style="text-align:center;margin-top:12px">
-          <button class="btn-ghost" onclick="backToRegister()" style="width:auto;padding:8px 18px;font-size:13px">← Back</button>
+          <button class="btn-ghost" onclick="backFromVerify()" style="width:auto;padding:8px 18px;font-size:13px">← Back</button>
         </div>
       </div>
 
+      <!-- LOGIN FORM — email code or password -->
       <div id="login-form" style="display:none">
         <div class="auth-title">Welcome back</div>
         <div class="field-group">
           <label>Email address</label>
           <input class="field" id="log-email" type="email" placeholder="you@example.com" autocomplete="email">
         </div>
+        <div id="login-error" class="auth-error"></div>
+        <button class="btn-primary" id="login-btn" onclick="login()">Send login code</button>
+        <div class="auth-divider">or</div>
+        <button class="btn-ghost" id="login-pass-btn" onclick="showPasswordLogin()" style="margin-bottom:8px">Log in with password</button>
+        <button class="btn-ghost" onclick="showRegister()">Create new account</button>
+      </div>
+
+      <!-- PASSWORD LOGIN FORM -->
+      <div id="login-pass-form" style="display:none">
+        <div class="auth-title">Welcome back</div>
+        <div class="field-group">
+          <label>Email address</label>
+          <input class="field" id="log-pass-email" type="email" placeholder="you@example.com" autocomplete="email">
+        </div>
         <div class="field-group">
           <label>Password</label>
-          <input class="field" id="log-pass" type="password" placeholder="Your password" autocomplete="current-password">
+          <div style="position:relative">
+            <input class="field" id="log-pass-input" type="password" placeholder="Your password" autocomplete="current-password" style="padding-right:42px">
+            <button onclick="togglePassVis('log-pass-input','eye-login')" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px" id="eye-login">👁</button>
+          </div>
         </div>
-        <button class="btn-primary" id="login-btn" onclick="login()">Log in</button>
+        <div id="login-pass-error" class="auth-error"></div>
+        <button class="btn-primary" id="login-pass-submit" onclick="loginWithPassword()">Log in</button>
         <div class="auth-divider">or</div>
-        <button class="btn-ghost" onclick="showRegister()">Create new account</button>
+        <button class="btn-ghost" onclick="showLogin()">Log in with email code</button>
+        <div style="text-align:center;margin-top:8px">
+          <button class="btn-ghost" onclick="showRegister()" style="width:auto;padding:8px 18px;font-size:13px">Create new account</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2303,7 +2325,7 @@ function sendVerificationCode(email) {
   document.getElementById('sending-status').style.display = 'block';
 
   emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-    to_name:  pendingUser.name,
+    to_name:  pendingUser ? (pendingUser.name || 'User') : 'User',
     to_email: email,
     code:     verificationCode
   }).then(function() {
@@ -2415,7 +2437,7 @@ function resendCode() {
   }
   document.getElementById('sent-confirm').style.display = 'none';
   clearError();
-  sendVerificationCode(pendingUser.email);
+  sendVerificationCode(pendingUser ? pendingUser.email : '');
   if (emailJSConfigured) showToast('New code sent to your inbox!');
   else showToast('New code generated!');
   document.getElementById('c0').focus();
@@ -2441,37 +2463,114 @@ function startResendCountdown() {
   }, 1000);
 }
 
-function backToRegister() {
+// isLoginFlow = true means we're logging in, false = registering
+var isLoginFlow = false;
+
+function register() {
   clearError();
-  clearInterval(resendInterval);
-  document.getElementById('verify-form').style.display = 'none';
-  document.getElementById('register-form').style.display = 'block';
+  var name     = document.getElementById('reg-name').value.trim();
+  var username = document.getElementById('reg-username').value.trim().toLowerCase();
+  var email    = document.getElementById('reg-email').value.trim().toLowerCase();
+  var pass     = document.getElementById('reg-pass').value;
+
+  if (!name)     { showError('Please enter your full name.'); return; }
+  if (!username) { showError('Please choose a username.'); return; }
+  if (username.length < 3) { showError('Username must be at least 3 characters.'); return; }
+  if (!/^[a-z0-9_]+$/.test(username)) { showError('Username: lowercase letters, numbers and underscores only.'); return; }
+  if (!email || !email.includes('@') || !email.includes('.')) { showError('Please enter a valid email address.'); return; }
+  if (pass && pass.length < 6) { showError('Password must be at least 6 characters (or leave it empty).'); return; }
+
+  var btn = document.getElementById('reg-btn');
+  if (btn) { btn.textContent = 'Checking…'; btn.disabled = true; }
+
+  loadUserFromFirebase(email, function(existingEmail) {
+    if (existingEmail) {
+      if (btn) { btn.textContent = 'Send verification code'; btn.disabled = false; }
+      showError('An account with this email already exists. Please log in.');
+      return;
+    }
+
+    if (!fbConfigured || !db) {
+      if (btn) { btn.textContent = 'Send verification code'; btn.disabled = false; }
+      isLoginFlow = false;
+      pendingUser = { name: name, username: username, email: email, password: pass || null };
+      document.getElementById('verify-title').textContent = 'Check your email';
+      sendVerificationCode(email);
+      showVerifyScreen(email);
+      return;
+    }
+
+    db.collection('users').where('username', '==', username).get()
+      .then(function(snap) {
+        if (btn) { btn.textContent = 'Send verification code'; btn.disabled = false; }
+        if (!snap.empty) {
+          showError('@' + username + ' is already taken. Please choose a different username.');
+          return;
+        }
+        isLoginFlow = false;
+        pendingUser = { name: name, username: username, email: email, password: pass || null };
+        document.getElementById('verify-title').textContent = 'Check your email';
+        sendVerificationCode(email);
+        showVerifyScreen(email);
+      })
+      .catch(function() {
+        if (btn) { btn.textContent = 'Send verification code'; btn.disabled = false; }
+        showError('Could not verify username. Please try again.');
+      });
+  });
 }
 
 function login() {
   clearError();
+  var loginErr = document.getElementById('login-error');
+  if (loginErr) loginErr.style.display = 'none';
   var email = document.getElementById('log-email').value.trim().toLowerCase();
-  var pass  = document.getElementById('log-pass').value;
+  if (!email || !email.includes('@')) { showError('Please enter a valid email address.'); return; }
 
-  if (!email || !pass) { showError('Please fill in all fields.'); return; }
-
-  // Show loading state
   var btn = document.getElementById('login-btn');
-  if (btn) { btn.textContent = 'Logging in…'; btn.disabled = true; }
+  if (btn) { btn.textContent = 'Checking…'; btn.disabled = true; }
 
   loadUserFromFirebase(email, function(account) {
-    if (btn) { btn.textContent = 'Log in'; btn.disabled = false; }
+    if (btn) { btn.textContent = 'Send login code'; btn.disabled = false; }
     if (!account) {
       showError('No account found with this email. Please register first.');
       return;
     }
-    if (account.password !== pass) {
-      showError('Wrong password. Please try again.');
-      return;
+    // Account exists — send login code
+    isLoginFlow = true;
+    pendingUser = { name: account.name, username: account.username, email: email, _account: account };
+    document.getElementById('verify-title').textContent = 'Log in to socialbook';
+    sendVerificationCode(email);
+    showVerifyScreen(email);
+  });
+}
+
+function verifyCode() {
+  var entered = '';
+  for (var i = 0; i < 6; i++) entered += document.getElementById('c' + i).value;
+  if (entered.length < 6) { showError('Please enter all 6 digits.'); return; }
+  if (entered !== verificationCode) {
+    showError('Incorrect code. Please try again.');
+    var inputs = document.getElementById('code-inputs');
+    inputs.style.animation = 'none';
+    inputs.offsetHeight;
+    inputs.style.animation = 'shake 0.4s ease';
+    for (var j = 0; j < 6; j++) {
+      var inp = document.getElementById('c' + j);
+      inp.value = '';
+      inp.classList.remove('filled');
     }
-    // ✅ Success
+    document.getElementById('c0').focus();
+    return;
+  }
+
+  clearError();
+  clearInterval(resendInterval);
+
+  if (isLoginFlow) {
+    // ✅ Login — load account from Firebase
+    var account = pendingUser._account;
     user = account;
-    // Deduplicate friendsList to fix any old duplicates
     if (user.friendsList && user.friendsList.length > 0) {
       var seen = {};
       user.friendsList = user.friendsList.filter(function(f) {
@@ -2480,25 +2579,108 @@ function login() {
         return true;
       });
       user.friends = user.friendsList.length;
-      // Save the cleaned list back to Firebase silently
+      saveUserToFirebase(null);
+    }
+    pendingUser = null;
+    saveUserLocal();
+    launchApp();
+    showToast('Welcome back, ' + user.name.split(' ')[0] + '! 👋');
+  } else {
+    // ✅ Registration — create new account
+    user.name     = pendingUser.name;
+    user.username = pendingUser.username;
+    user.email    = pendingUser.email;
+    user.password = pendingUser.password || null;
+    user.verified = true;
+    user.lastNameChange = null;
+    user.lastUsernameChange = null;
+    pendingUser = null;
+    saveUserToFirebase(function() {
+      launchApp();
+      showToast('Welcome to socialbook, ' + user.name.split(' ')[0] + '! 🎉');
+    });
+  }
+}
+
+function showPasswordLogin() {
+  clearError();
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('login-pass-form').style.display = 'block';
+  var errEl = document.getElementById('login-pass-error');
+  if (errEl) errEl.style.display = 'none';
+}
+
+function loginWithPassword() {
+  var errEl = document.getElementById('login-pass-error');
+  if (errEl) errEl.style.display = 'none';
+  var email = document.getElementById('log-pass-email').value.trim().toLowerCase();
+  var pass  = document.getElementById('log-pass-input').value;
+
+  if (!email) { if (errEl) { errEl.textContent = 'Please enter your email.'; errEl.style.display = 'block'; } return; }
+  if (!pass)  { if (errEl) { errEl.textContent = 'Please enter your password.'; errEl.style.display = 'block'; } return; }
+
+  var btn = document.getElementById('login-pass-submit');
+  if (btn) { btn.textContent = 'Logging in…'; btn.disabled = true; }
+
+  loadUserFromFirebase(email, function(account) {
+    if (btn) { btn.textContent = 'Log in'; btn.disabled = false; }
+    if (!account) {
+      if (errEl) { errEl.textContent = 'No account found with this email.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!account.password) {
+      if (errEl) { errEl.textContent = 'This account has no password set. Please use email code login.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (account.password !== pass) {
+      if (errEl) { errEl.textContent = 'Wrong password. Please try again.'; errEl.style.display = 'block'; }
+      return;
+    }
+    // ✅ Success
+    user = account;
+    if (user.friendsList && user.friendsList.length > 0) {
+      var seen = {};
+      user.friendsList = user.friendsList.filter(function(f) {
+        if (!f.email || seen[f.email]) return false;
+        seen[f.email] = true;
+        return true;
+      });
+      user.friends = user.friendsList.length;
       saveUserToFirebase(null);
     }
     saveUserLocal();
     launchApp();
-    showToast('Welcome back, ' + user.name.split(' ')[0] + '!');
+    showToast('Welcome back, ' + user.name.split(' ')[0] + '! 👋');
   });
 }
+
+function backFromVerify() {
+  clearError();
+  clearInterval(resendInterval);
+  document.getElementById('verify-form').style.display = 'none';
+  if (isLoginFlow) {
+    document.getElementById('login-form').style.display = 'block';
+  } else {
+    document.getElementById('register-form').style.display = 'block';
+  }
+  pendingUser = null;
+  isLoginFlow = false;
+}
+
+function backToRegister() { backFromVerify(); }
 
 function showLogin() {
   clearError();
   document.getElementById('register-form').style.display = 'none';
   document.getElementById('verify-form').style.display = 'none';
+  document.getElementById('login-pass-form').style.display = 'none';
   document.getElementById('login-form').style.display = 'block';
 }
 
 function showRegister() {
   clearError();
   document.getElementById('login-form').style.display = 'none';
+  document.getElementById('login-pass-form').style.display = 'none';
   document.getElementById('verify-form').style.display = 'none';
   document.getElementById('register-form').style.display = 'block';
 }
@@ -2508,6 +2690,7 @@ function logout() {
   document.getElementById('app').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('login-form').style.display = 'none';
+  document.getElementById('login-pass-form').style.display = 'none';
   document.getElementById('verify-form').style.display = 'none';
   document.getElementById('register-form').style.display = 'block';
   clearError();
