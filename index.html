@@ -3527,9 +3527,9 @@ function loadConversations() {
 
         var div = document.createElement('div');
         div.className = 'conv-item';
-        div.onclick = (function(fe, fn, fu) {
-          return function() { openChat(fe, fn, fu); };
-        })(friendEmail, friendName, friendUser);
+        div.onclick = (function(fe, fn, fu, unread) {
+          return function() { openChat(fe, fn, fu, unread); };
+        })(friendEmail, friendName, friendUser, myUnread);
 
         div.innerHTML =
           '<div class="conv-av">' + getInitials(friendName) + '</div>' +
@@ -3547,7 +3547,7 @@ function loadConversations() {
     }, function() {});
 }
 
-function openChat(friendEmail, friendName, friendUsername) {
+function openChat(friendEmail, friendName, friendUsername, unreadCount) {
   currentChatFriend = { email: friendEmail, name: friendName, username: friendUsername };
   currentChatId = getChatId(user.email, friendEmail);
 
@@ -3560,26 +3560,17 @@ function openChat(friendEmail, friendName, friendUsername) {
   var msgArea = document.getElementById('chat-messages');
   msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
 
+  // Capture unread count NOW before we clear it
+  var chatUnreadCount = unreadCount || 0;
   var myKey = emailKey(user.email);
   var unreadField = 'unread.' + myKey;
-  var chatUnreadCount = 0;
 
-  // Get current unread count before clearing, so we know where to scroll
-  db.collection('conversations').doc(currentChatId).get().then(function(doc) {
-    if (doc.exists) {
-      var d = doc.data();
-      if (d[unreadField] && typeof d[unreadField] === 'number') chatUnreadCount = d[unreadField];
-      else if (d.unread && d.unread[myKey]) chatUnreadCount = d.unread[myKey];
-    }
-  });
-
-  // Clear MY unread
+  // Clear MY unread immediately
   var clearUpdate = {};
-  clearUpdate[unreadField] = 0;
-  db.collection('conversations').doc(currentChatId)
-    .update(clearUpdate).catch(function() {});
+  clearUpdate[unreadField] = firebase.firestore.FieldValue.delete();
+  db.collection('conversations').doc(currentChatId).update(clearUpdate).catch(function() {});
 
-  // Real-time listener for messages
+  // Start real-time message listener
   var firstLoad = true;
   if (msgUnsubscribe) msgUnsubscribe();
   msgUnsubscribe = db.collection('conversations').doc(currentChatId)
@@ -3587,70 +3578,62 @@ function openChat(friendEmail, friendName, friendUsername) {
     .orderBy('ts', 'asc')
     .onSnapshot(function(snap) {
       if (snap.empty) {
-        msgArea.innerHTML =
-          '<div style="text-align:center;padding:32px 20px;color:var(--text3);font-size:13px">' +
-            'Say hello to ' + friendName + '! 👋</div>';
+        msgArea.innerHTML = '<div style="text-align:center;padding:32px 20px;color:var(--text3);font-size:13px">Say hello to ' + friendName + '! 👋</div>';
         return;
       }
+
       msgArea.innerHTML = '';
       var msgs = [];
-      snap.forEach(function(doc) { msgs.push(doc.data()); });
+      snap.forEach(function(d) { msgs.push(d.data()); });
       var total = msgs.length;
-      var firstUnreadEl = null;
+      var scrollTarget = null;
 
       msgs.forEach(function(m, i) {
         var mine = m.sender === user.email;
         var time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
-        var wrap = document.createElement('div');
-        wrap.className = 'msg-bubble-wrap ' + (mine ? 'mine' : 'theirs');
 
-        // Mark the first unread message divider
-        var isFirstUnread = firstLoad && chatUnreadCount > 0 && i === total - chatUnreadCount;
-        if (isFirstUnread) {
+        // Insert "N unread messages" divider before the first unread message
+        if (firstLoad && chatUnreadCount > 0 && i === total - chatUnreadCount) {
           var divider = document.createElement('div');
-          divider.id = 'first-unread-divider';
-          divider.style.cssText = 'text-align:center;font-size:11px;color:var(--red);font-weight:600;padding:6px 0;margin:4px 0;border-top:1px solid var(--red);opacity:0.7';
+          divider.style.cssText = 'text-align:center;font-size:11px;color:var(--red);font-weight:600;padding:6px 0;margin:4px 0;border-top:1px solid rgba(226,68,58,0.4)';
           divider.textContent = chatUnreadCount + ' unread message' + (chatUnreadCount > 1 ? 's' : '');
           msgArea.appendChild(divider);
-          firstUnreadEl = divider;
+          scrollTarget = divider;
         }
 
-        wrap.innerHTML =
-          '<div class="msg-bubble ' + (mine ? 'mine' : 'theirs') + '">' + escapeHtml(m.text) + '</div>' +
-          '<div class="msg-time">' + time + '</div>';
+        var wrap = document.createElement('div');
+        wrap.className = 'msg-bubble-wrap ' + (mine ? 'mine' : 'theirs');
+        wrap.innerHTML = '<div class="msg-bubble ' + (mine ? 'mine' : 'theirs') + '">' + escapeHtml(m.text) + '</div><div class="msg-time">' + time + '</div>';
         msgArea.appendChild(wrap);
       });
 
-      // On first load: scroll to first unread divider, otherwise scroll to bottom
       if (firstLoad) {
         firstLoad = false;
+        var savedUnread = chatUnreadCount;
+        chatUnreadCount = 0; // prevent divider on future updates
         setTimeout(function() {
-          if (firstUnreadEl) {
-            firstUnreadEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (scrollTarget && savedUnread > 0) {
+            scrollTarget.scrollIntoView({ block: 'start' });
           } else {
             msgArea.scrollTop = msgArea.scrollHeight;
           }
-        }, 50);
+        }, 60);
       } else {
         msgArea.scrollTop = msgArea.scrollHeight;
       }
     }, function() {});
 
-  setTimeout(function() { document.getElementById('chat-input').focus(); }, 100);
+  setTimeout(function() { var inp = document.getElementById('chat-input'); if(inp) inp.focus(); }, 150);
 }
 
 function closeChatView() {
   if (msgUnsubscribe) { msgUnsubscribe(); msgUnsubscribe = null; }
   // Clear my unread for this chat when leaving
   if (currentChatId) {
-    var clearData = { unread: {} };
-    clearData.unread[emailKey(user.email)] = 0;
+    var myUnreadField = 'unread.' + emailKey(user.email);
     var clearUpdate = {};
-    clearUpdate['unread.' + emailKey(user.email)] = 0;
-    db.collection('conversations').doc(currentChatId)
-      .set({ unread: clearData.unread }, { merge: true }).catch(function() {});
-    db.collection('conversations').doc(currentChatId)
-      .update(clearUpdate).catch(function() {});
+    clearUpdate[myUnreadField] = firebase.firestore.FieldValue.delete();
+    db.collection('conversations').doc(currentChatId).update(clearUpdate).catch(function() {});
   }
   currentChatId = null;
   currentChatFriend = null;
@@ -3673,53 +3656,30 @@ function sendMessage() {
   var recipientKey = emailKey(recipientEmail);
   var unreadField = 'unread.' + recipientKey;
 
-  // Write message
+  // Write message to subcollection
   db.collection('conversations').doc(chatId)
     .collection('messages').add({ text: text, sender: user.email, ts: now })
     .catch(function(e) { console.error('msg write failed', e); });
 
-  // Use transaction to atomically increment unread count
+  // Build metadata update
   var convRef = db.collection('conversations').doc(chatId);
-  db.runTransaction(function(tx) {
-    return tx.get(convRef).then(function(doc) {
-      var data = doc.exists ? doc.data() : {};
 
-      // Get current unread — check top-level dot field first, then nested
-      var current = 0;
-      if (data[unreadField] && typeof data[unreadField] === 'number') {
-        current = data[unreadField];
-      } else if (data.unread && data.unread[recipientKey]) {
-        current = data.unread[recipientKey];
-      }
+  // First ensure doc exists with member/name metadata
+  var meta = { members: [user.email, recipientEmail], names: {}, usernames: {} };
+  meta.names[user.email] = user.name;
+  meta.names[recipientEmail] = currentChatFriend.name;
+  meta.usernames[user.email] = user.username || '';
+  meta.usernames[recipientEmail] = currentChatFriend.username || '';
 
-      var updateData = {
-        lastMsg:    text,
-        lastSender: user.email,
-        lastTs:     now
-      };
-      updateData[unreadField] = current + 1;
-
-      // Set metadata on first message
-      if (!doc.exists) {
-        updateData.members = [user.email, recipientEmail];
-        updateData.names = {};
-        updateData.names[user.email] = user.name;
-        updateData.names[recipientEmail] = currentChatFriend.name;
-        updateData.usernames = {};
-        updateData.usernames[user.email] = user.username || '';
-        updateData.usernames[recipientEmail] = currentChatFriend.username || '';
-        tx.set(convRef, updateData, { merge: true });
-      } else {
-        tx.set(convRef, updateData, { merge: true });
-      }
-    });
-  }).catch(function(e) {
-    // Fallback: just write without transaction
-    var fallback = { lastMsg: text, lastSender: user.email, lastTs: now };
-    fallback[unreadField] = 1;
-    convRef.set(fallback, { merge: true }).catch(function(){});
-    console.error('transaction failed, used fallback', e);
-  });
+  convRef.set(meta, { merge: true }).then(function() {
+    // Now atomically increment unread using FieldValue.increment
+    var inc = {};
+    inc[unreadField] = firebase.firestore.FieldValue.increment(1);
+    inc.lastMsg = text;
+    inc.lastSender = user.email;
+    inc.lastTs = now;
+    return convRef.update(inc);
+  }).catch(function(e) { console.error('conv update failed', e); });
 }
 
 function chatKeydown(e) {
