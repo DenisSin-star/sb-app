@@ -3029,11 +3029,6 @@ var seenStoryIds = new Set(JSON.parse(localStorage.getItem('seenStoryIds') || '[
 function markStorySeen(storyId) {
   if (!storyId) return;
   seenStoryIds.add(storyId);
-  // Clean up expired IDs (older than 24h) — keep only IDs that still exist in stories
-  var validIds = stories.map(function(s) { return s.id; });
-  seenStoryIds.forEach(function(id) {
-    if (validIds.indexOf(id) === -1) seenStoryIds.delete(id);
-  });
   localStorage.setItem('seenStoryIds', JSON.stringify(Array.from(seenStoryIds)));
 }
 var storyPaused = false;
