@@ -2778,6 +2778,7 @@ function initApp() {
   loadConversations();
   startUnreadListener();
   startNotifListener();
+  preCachePhotos();
 }
 
 function updateProfileUI() {
@@ -2928,12 +2929,16 @@ function renderStoriesBar(bar, addBtn, storyList) {
   storyList.forEach(function(s, i) {
     var item = document.createElement('div');
     item.className = 'story-item';
-    var avatarContent = s.img
-      ? '<img src="' + s.img + '" alt="' + s.authorName + '">'
-      : '<span style="font-size:13px;font-weight:600;color:#1a56db">' + getInitials(s.authorName) + '</span>';
     var isOwn = s.authorEmail === user.email;
+    var isSeen = s.id && seenStoryIds.has(s.id);
+    var photo = s.authorPhoto || photoCache[s.authorEmail] || null;
+    var avatarContent = photo
+      ? '<img src="' + photo + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+      : (s.img
+          ? '<img src="' + s.img + '" alt="' + s.authorName + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+          : '<span style="font-size:13px;font-weight:600;color:#1a56db">' + getInitials(s.authorName) + '</span>');
     item.innerHTML =
-      '<div class="story-ring ' + (isOwn ? '' : 'unseen') + '" onclick="viewStory(' + i + ')" style="cursor:pointer">' +
+      '<div class="story-ring ' + (isOwn || isSeen ? 'seen' : 'unseen') + '" onclick="viewStory(' + i + ')" style="cursor:pointer">' +
         '<div class="story-avatar" style="background:#e8f0fe">' + avatarContent + '</div>' +
       '</div>' +
       '<span class="story-name">' + (isOwn ? 'Your story' : s.authorName.split(' ')[0]) + '</span>';
@@ -2979,6 +2984,7 @@ function addStory(e) {
       var storyData = {
         authorEmail: user.email,
         authorName: user.name,
+        authorPhoto: user.profilePic || null,
         img: url,
         ts: Date.now(),
         likes: []
@@ -2995,6 +3001,8 @@ function addStory(e) {
 
 var currentStoryIndex = -1;
 var storyCommentsUnsub = null;
+
+function viewStory(index) {
 var storyPaused = false;
 var storyTimeRemaining = 7000;
 var storyStartTime = null;
@@ -3003,6 +3011,15 @@ function viewStory(index) {
   if (index < 0 || index >= stories.length) { closeStory(); return; }
   currentStoryIndex = index;
   var s = stories[index];
+
+  // Mark as seen
+  if (s.id) seenStoryIds.add(s.id);
+  // Update the ring in the stories bar to grey
+  var rings = document.querySelectorAll('.story-ring');
+  if (rings[index]) {
+    rings[index].classList.remove('unseen');
+    rings[index].classList.add('seen');
+  }
   var content  = document.getElementById('sv-content');
   var progress = document.getElementById('sv-progress');
 
@@ -3199,6 +3216,42 @@ function closeStory() {
 }
 
 // ============================================================
+// AVATAR HELPER — shows photo if available, else initials
+// ============================================================
+var photoCache = {}; // email -> photoUrl
+
+function avatarHTML(email, name, photoUrl, size) {
+  size = size || 36;
+  var initials = getInitials(name || '?');
+  var url = photoUrl || photoCache[email] || null;
+  if (url) {
+    return '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#e8f0fe">' +
+      '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover" onerror="this.parentNode.innerHTML=\'' + initials + '\';this.parentNode.style.display=\'flex\';this.parentNode.style.alignItems=\'center\';this.parentNode.style.justifyContent=\'center\';this.parentNode.style.fontSize=\'' + Math.floor(size*0.38) + 'px\';this.parentNode.style.fontWeight=\'600\';this.parentNode.style.color=\'#1a56db\'">' +
+    '</div>';
+  }
+  return '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:#e8f0fe;color:#1a56db;display:flex;align-items:center;justify-content:center;font-size:' + Math.floor(size*0.38) + 'px;font-weight:600;flex-shrink:0">' + initials + '</div>';
+}
+
+function fetchAndCachePhoto(email, callback) {
+  if (photoCache[email] !== undefined) { callback(photoCache[email]); return; }
+  if (!fbConfigured || !db) { photoCache[email] = null; callback(null); return; }
+  db.collection('users').doc(email).get().then(function(doc) {
+    var photo = doc.exists && doc.data().profilePic ? doc.data().profilePic : null;
+    photoCache[email] = photo;
+    callback(photo);
+  }).catch(function() { photoCache[email] = null; callback(null); });
+}
+
+// Pre-cache own photo and friends' photos on login
+function preCachePhotos() {
+  if (!user.email) return;
+  photoCache[user.email] = user.profilePic || null;
+  (user.friendsList || []).forEach(function(f) {
+    fetchAndCachePhoto(f.email, function() {});
+  });
+}
+
+// ============================================================
 // POSTS — Firebase backed
 // ============================================================
 var feedUnsubscribe = null;
@@ -3298,14 +3351,15 @@ function renderPostsList(container, posts) {
 
   posts.forEach(function(p) {
     var timeStr = p.ts ? timeAgo(p.ts) : 'just now';
-    var initials = getInitials(p.authorName || '?');
     var isSaved = savedIds.indexOf(p.id) > -1;
-    var card = createPostCard(p.id, initials, p.authorName || '?', timeStr, p.text || '', p.imgSrc || null, p.authorEmail, p.likes || [], p.commentCount || 0, isSaved);
+    // Cache the author's photo
+    if (p.authorPhoto && p.authorEmail) photoCache[p.authorEmail] = p.authorPhoto;
+    var card = createPostCard(p.id, p.authorName || '?', timeStr, p.text || '', p.imgSrc || null, p.authorEmail, p.likes || [], p.commentCount || 0, isSaved, p.authorPhoto || null);
     container.appendChild(card);
   });
 }
 
-function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail, likes, commentCount, isSaved) {
+function createPostCard(postId, name, time, text, imgSrc, authorEmail, likes, commentCount, isSaved, authorPhoto) {
   var liked = likes && likes.indexOf(user.email) > -1;
   var likeCount = likes ? likes.length : 0;
   var safeId = postId || '';
@@ -3318,7 +3372,7 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
   div.setAttribute('data-post-id', safeId);
   div.innerHTML =
     '<div class="post-header">' +
-      '<div class="post-av" style="background:#e8f0fe;color:#1a56db">' + initials + '</div>' +
+      avatarHTML(authorEmail, name, authorPhoto, 38) +
       '<div class="post-meta"><div class="post-name">' + name + '</div><div class="post-time">' + time + '</div></div>' +
       (authorEmail === user.email
         ? '<button onclick="deletePost(\'' + safeId + '\',this)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;margin-left:auto" title="Delete post">🗑</button>'
@@ -3409,7 +3463,13 @@ function openComments(postId, authorEmail, authorName) {
   currentCommentAuthorEmail = authorEmail;
   currentCommentAuthorName = authorName;
 
-  document.getElementById('comment-av').textContent = getInitials(user.name);
+  var commentAvEl = document.getElementById('comment-av');
+  if (user.profilePic) {
+    commentAvEl.innerHTML = '<img src="' + user.profilePic + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    commentAvEl.style.padding = '0';
+  } else {
+    commentAvEl.textContent = getInitials(user.name);
+  }
   document.getElementById('comment-input').value = '';
   document.getElementById('comments-modal').style.display = 'flex';
 
@@ -3660,6 +3720,7 @@ function submitPost() {
   var postData = {
     authorEmail: user.email,
     authorName:  user.name,
+    authorPhoto: user.profilePic || null,
     text:        text || '',
     imgSrc:      pendingPostPhoto || null,
     ts:          Date.now()
@@ -3826,8 +3887,12 @@ function loadMyFriendsTab() {
       friends.forEach(function(f) {
         var div = document.createElement('div');
         div.className = 'friend-item';
+        var friendPhoto = photoCache[f.email] || null;
+        var avHtml = friendPhoto
+          ? '<div class="friend-av" style="background:#e8f0fe;overflow:hidden;padding:0"><img src="' + friendPhoto + '" style="width:100%;height:100%;object-fit:cover"></div>'
+          : '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + getInitials(f.name) + '</div>';
         div.innerHTML =
-          '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + getInitials(f.name) + '</div>' +
+          avHtml +
           '<div class="friend-info"><div class="friend-name">' + f.name + '</div><div class="friend-sub" style="color:var(--blue)">@' + (f.username || '') + '</div></div>' +
           '<button class="btn-sent">Friends ✓</button>';
         list.appendChild(div);
@@ -4064,8 +4129,13 @@ function searchFriends(query) {
           ? '<button class="btn-sent">Request sent</button>'
           : '<button class="btn-add" onclick="sendFriendRequest(this, \'' + (f.username || '').replace(/'/g, "\\'") + '\')">+ Add friend</button>';
         var usernameHtml = f.username ? '<div class="friend-sub" style="color:var(--blue)">@' + f.username + '</div>' : '';
+        var fPhoto = f.profilePic || photoCache[f.email] || null;
+        if (fPhoto) photoCache[f.email] = fPhoto;
+        var avHtml = fPhoto
+          ? '<div class="friend-av" style="background:#e8f0fe;overflow:hidden;padding:0"><img src="' + fPhoto + '" style="width:100%;height:100%;object-fit:cover"></div>'
+          : '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + initials + '</div>';
         return '<div class="friend-item">' +
-          '<div class="friend-av" style="background:#e8f0fe;color:#1a56db">' + initials + '</div>' +
+          avHtml +
           '<div class="friend-info"><div class="friend-name">' + f.name + '</div>' + usernameHtml + '</div>' +
           btn +
         '</div>';
@@ -4581,8 +4651,13 @@ function loadConversations() {
           return function() { openChat(fe, fn, fu, unread); };
         })(friendEmail, friendName, friendUser, myUnread);
 
+        var friendPhoto = photoCache[friendEmail] || null;
+        var convAvatar = friendPhoto
+          ? '<div class="conv-av" style="overflow:hidden;padding:0"><img src="' + friendPhoto + '" style="width:100%;height:100%;object-fit:cover"></div>'
+          : '<div class="conv-av">' + getInitials(friendName) + '</div>';
+
         div.innerHTML =
-          '<div class="conv-av">' + getInitials(friendName) + '</div>' +
+          convAvatar +
           '<div style="flex:1;min-width:0">' +
             '<div class="conv-name" style="font-weight:' + (myUnread > 0 ? '700' : '600') + '">' + friendName + '</div>' +
             '<div class="conv-preview" style="font-weight:' + (myUnread > 0 ? '600' : '400') + ';color:' + (myUnread > 0 ? 'var(--text)' : 'var(--text3)') + '">' +
@@ -4603,7 +4678,16 @@ function openChat(friendEmail, friendName, friendUsername, unreadCount) {
 
   document.getElementById('msg-list-view').style.display = 'none';
   document.getElementById('msg-chat-view').style.display = 'flex';
-  document.getElementById('chat-av').textContent = getInitials(friendName);
+  // Set chat avatar — photo if available
+  var chatAvEl = document.getElementById('chat-av');
+  var friendPhoto = photoCache[friendEmail] || null;
+  if (friendPhoto) {
+    chatAvEl.innerHTML = '<img src="' + friendPhoto + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    chatAvEl.style.padding = '0';
+  } else {
+    chatAvEl.textContent = getInitials(friendName);
+    chatAvEl.style.padding = '';
+  }
   document.getElementById('chat-name').textContent = friendName;
   document.getElementById('chat-username').textContent = friendUsername ? '@' + friendUsername : '';
 
