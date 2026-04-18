@@ -1863,13 +1863,17 @@
 
     <!-- ===== SAVED SCREEN ===== -->
     <div class="screen" id="screen-saved">
+      <div class="topbar">
+        <div style="font-size:16px;font-weight:700">Saved Posts</div>
+      </div>
       <div class="scroll-area">
-        <div class="note-composer">
-          <div style="font-size:15px;font-weight:700;margin-bottom:10px">Saved messages & notes</div>
-          <textarea id="note-textarea" placeholder="Write a note to save..."></textarea>
-          <button class="btn-post" onclick="saveNote()">Save note</button>
+        <div id="saved-list">
+          <div style="text-align:center;padding:48px 20px;color:var(--text3)" id="saved-empty-state">
+            <div style="font-size:36px;margin-bottom:12px">🔖</div>
+            <div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">No saved posts yet</div>
+            <div style="font-size:13px">Tap Save on any post to save it here</div>
+          </div>
         </div>
-        <div id="saved-list"></div>
       </div>
     </div>
 
@@ -1999,7 +2003,15 @@
           <button class="icon-btn" onclick="showNewMessageModal()" title="New message" style="font-size:18px;font-weight:300">✏️</button>
         </div>
         <div class="scroll-area" id="conversations-list">
-          <div style="text-align:center;padding:48px 20px;color:var(--text3)" id="conv-empty">
+          <!-- Saved Messages — always pinned at top -->
+          <div class="conv-item" onclick="openSavedMessages()" style="border-bottom:1px solid var(--border)">
+            <div class="conv-av" style="background:linear-gradient(135deg,#1a56db,#7c3aed)">🔖</div>
+            <div style="flex:1;min-width:0">
+              <div class="conv-name">Saved Messages</div>
+              <div class="conv-preview">Your notes, photos and messages</div>
+            </div>
+          </div>
+          <div id="conv-empty" style="text-align:center;padding:48px 20px;color:var(--text3)">
             <div style="font-size:36px;margin-bottom:10px">💬</div>
             <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No messages yet</div>
             <div style="font-size:13px">Start a conversation with a friend</div>
@@ -2083,6 +2095,11 @@
         <button onclick="closeCommentsModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button>
       </div>
       <div id="comments-list" style="flex:1;overflow-y:auto;padding:8px 0"></div>
+      <!-- Reply indicator -->
+      <div id="reply-bar" style="display:none;background:var(--surface2);padding:6px 12px;border-top:1px solid var(--border);display:none;align-items:center;gap:8px">
+        <div style="flex:1;font-size:12px;color:var(--blue)">↩ Replying to <span id="reply-name"></span></div>
+        <button onclick="cancelReply()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px">✕</button>
+      </div>
       <div style="padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
         <div class="post-av" id="comment-av" style="width:32px;height:32px;font-size:12px;flex-shrink:0"></div>
         <textarea id="comment-input" placeholder="Write a comment…" rows="1"
@@ -3487,13 +3504,32 @@ function openComments(postId, authorEmail, authorName) {
       list.innerHTML = '';
       snap.forEach(function(doc) {
         var c = doc.data();
+        var commentId = doc.id;
+        var isAuthor = c.authorEmail === currentCommentAuthorEmail;
+        var isOwnComment = c.authorEmail === user.email;
+        var canDelete = isOwnComment || user.email === currentCommentAuthorEmail;
         var div = document.createElement('div');
         div.style.cssText = 'display:flex;gap:10px;padding:10px 14px;align-items:flex-start';
+        var photo = photoCache[c.authorEmail] || null;
+        var avHtml = photo
+          ? '<div style="width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="' + photo + '" style="width:100%;height:100%;object-fit:cover"></div>'
+          : '<div class="post-av" style="width:32px;height:32px;font-size:12px;flex-shrink:0;background:#e8f0fe;color:#1a56db">' + getInitials(c.authorName) + '</div>';
+        var authorBadge = isAuthor
+          ? '<span style="background:#1a56db;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle">Author</span>'
+          : '';
+        var replyText = c.replyTo ? '<div style="font-size:11px;color:var(--blue);margin-bottom:2px">↩ ' + escapeHtml(c.replyTo) + '</div>' : '';
         div.innerHTML =
-          '<div class="post-av" style="width:32px;height:32px;font-size:12px;flex-shrink:0;background:#e8f0fe;color:#1a56db">' + getInitials(c.authorName) + '</div>' +
+          avHtml +
           '<div style="flex:1">' +
-            '<div style="font-size:13px;font-weight:600">' + escapeHtml(c.authorName) + ' <span style="font-weight:400;color:var(--text3);font-size:11px">' + timeAgo(c.ts) + '</span></div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between">' +
+              '<div style="font-size:13px;font-weight:600">' + escapeHtml(c.authorName) + authorBadge +
+                '<span style="font-weight:400;color:var(--text3);font-size:11px;margin-left:6px">' + timeAgo(c.ts) + '</span>' +
+              '</div>' +
+              (canDelete ? '<button onclick="deleteComment(\'' + currentCommentPostId + '\',\'' + commentId + '\',this)" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:0 4px" title="Delete comment">🗑</button>' : '') +
+            '</div>' +
+            replyText +
             '<div style="font-size:13px;margin-top:2px;color:var(--text)">' + escapeHtml(c.text) + '</div>' +
+            '<button onclick="replyToComment(\'' + escapeHtml(c.authorName).replace(/'/g,"\\'") + '\')" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:4px 0;margin-top:2px">↩ Reply</button>' +
           '</div>';
         list.appendChild(div);
       });
@@ -3505,10 +3541,40 @@ function closeCommentsModal() {
   document.getElementById('comments-modal').style.display = 'none';
   if (commentsUnsub) { commentsUnsub(); commentsUnsub = null; }
   currentCommentPostId = null;
+  cancelReply();
 }
 
 function commentKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); }
+}
+
+function deleteComment(postId, commentId, btn) {
+  if (!fbConfigured || !db) return;
+  if (!confirm('Delete this comment?')) return;
+  db.collection('posts').doc(postId).collection('comments').doc(commentId).delete().then(function() {
+    db.collection('posts').doc(postId).update({ commentCount: firebase.firestore.FieldValue.increment(-1) }).catch(function() {});
+    // Remove from UI
+    var row = btn ? btn.closest('div[style*="display:flex"]') : null;
+    if (row) row.remove();
+    showToast('Comment deleted');
+  }).catch(function() { showToast('Could not delete comment.'); });
+}
+
+var currentReplyTo = null;
+
+function replyToComment(authorName) {
+  currentReplyTo = authorName;
+  var bar = document.getElementById('reply-bar');
+  bar.style.display = 'flex';
+  document.getElementById('reply-name').textContent = authorName;
+  document.getElementById('comment-input').focus();
+  document.getElementById('comment-input').placeholder = 'Reply to ' + authorName + '…';
+}
+
+function cancelReply() {
+  currentReplyTo = null;
+  document.getElementById('reply-bar').style.display = 'none';
+  document.getElementById('comment-input').placeholder = 'Write a comment…';
 }
 
 function submitComment() {
@@ -3525,12 +3591,14 @@ function submitComment() {
     text: text,
     ts: Date.now()
   };
+  if (currentReplyTo) {
+    comment.replyTo = currentReplyTo;
+    cancelReply();
+  }
 
   var postRef = db.collection('posts').doc(currentCommentPostId);
   postRef.collection('comments').add(comment).then(function() {
-    // Increment comment count on post
     postRef.update({ commentCount: firebase.firestore.FieldValue.increment(1) }).catch(function() {});
-    // Send notification to post author
     if (currentCommentAuthorEmail && currentCommentAuthorEmail !== user.email) {
       sendNotification(currentCommentAuthorEmail, {
         type: 'comment',
@@ -4355,22 +4423,83 @@ function toggleSavePost(postId, from, text, authorEmail, imgSrc, btn) {
   }
 }
 
+// ============================================================
+// SAVED MESSAGES — personal note-taking chat
+// ============================================================
+function openSavedMessages() {
+  // Open like a chat but with yourself
+  currentChatFriend = { email: user.email, name: 'Saved Messages', username: '' };
+  currentChatId = 'saved__' + user.email.replace(/[@.]/g, '_');
+
+  document.getElementById('msg-list-view').style.display = 'none';
+  document.getElementById('msg-chat-view').style.display = 'flex';
+
+  var chatAvEl = document.getElementById('chat-av');
+  chatAvEl.innerHTML = '🔖';
+  chatAvEl.style.background = 'linear-gradient(135deg,#1a56db,#7c3aed)';
+  chatAvEl.style.fontSize = '18px';
+  document.getElementById('chat-name').textContent = 'Saved Messages';
+  document.getElementById('chat-username').textContent = 'Your private notes & files';
+
+  var msgArea = document.getElementById('chat-messages');
+  msgArea.innerHTML = '<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Loading…</div>';
+
+  if (msgUnsubscribe) msgUnsubscribe();
+  msgUnsubscribe = db.collection('savedMessages').doc(user.email)
+    .collection('messages')
+    .orderBy('ts', 'asc')
+    .onSnapshot(function(snap) {
+      if (snap.empty) {
+        msgArea.innerHTML = '<div style="text-align:center;padding:32px 20px;color:var(--text3);font-size:13px">Save notes, photos and anything you want to keep 🔖</div>';
+        return;
+      }
+      msgArea.innerHTML = '';
+      snap.forEach(function(doc) {
+        var m = doc.data();
+        var time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
+        var wrap = document.createElement('div');
+        wrap.className = 'msg-bubble-wrap mine';
+        var content = '';
+        if (m.type === 'photo') {
+          content = '<img src="' + m.imgSrc + '" style="max-width:220px;border-radius:12px;display:block">';
+        } else {
+          content = '<div class="msg-bubble mine">' + escapeHtml(m.text || '') + '</div>';
+        }
+        wrap.innerHTML = content + '<div class="msg-time">' + time + '</div>';
+        msgArea.appendChild(wrap);
+      });
+      msgArea.scrollTop = msgArea.scrollHeight;
+    }, function() {});
+
+  setTimeout(function() { var inp = document.getElementById('chat-input'); if(inp) inp.focus(); }, 150);
+}
+
+function sendSavedMessage() {
+  var input = document.getElementById('chat-input');
+  var text = input.value.trim();
+  if (!text || !fbConfigured || !db) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  db.collection('savedMessages').doc(user.email)
+    .collection('messages').add({
+      type: 'text',
+      text: text,
+      ts: Date.now()
+    }).catch(function() { showToast('Could not save message.'); });
+}
+
 function saveNote() {
-  var text = document.getElementById('note-textarea').value.trim();
-  if (!text) { showToast('Write something first!'); return; }
-  var list = document.getElementById('saved-list');
-  var empty = document.getElementById('saved-empty-state');
-  if (empty) empty.remove();
-  var item = document.createElement('div');
-  item.className = 'saved-item';
-  var now = new Date();
-  var timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  item.innerHTML =
-    '<div class="saved-from" style="color:#7c3aed">📝 Your note · ' + timeStr + '</div>' +
-    '<div class="saved-text">' + text + '</div>';
-  list.insertBefore(item, list.firstChild);
-  document.getElementById('note-textarea').value = '';
-  showToast('Note saved! 📝');
+  var text = document.getElementById('note-textarea') ? document.getElementById('note-textarea').value.trim() : '';
+  if (!text) return;
+  if (document.getElementById('note-textarea')) document.getElementById('note-textarea').value = '';
+
+  if (fbConfigured && db) {
+    db.collection('savedMessages').doc(user.email)
+      .collection('messages').add({ type: 'text', text: text, ts: Date.now() })
+      .then(function() { showToast('Note saved! 📝'); })
+      .catch(function() { showToast('Could not save note.'); });
+  }
 }
 
 // ============================================================
@@ -4619,14 +4748,18 @@ function loadConversations() {
     .onSnapshot(function(snap) {
       if (snap.empty) {
         list.innerHTML =
-          '<div style="text-align:center;padding:48px 20px;color:var(--text3)" id="conv-empty">' +
-            '<div style="font-size:36px;margin-bottom:10px">💬</div>' +
-            '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">No messages yet</div>' +
-            '<div style="font-size:13px">Start a conversation with a friend</div>' +
+          '<div class="conv-item" onclick="openSavedMessages()" style="border-bottom:1px solid var(--border)">' +
+            '<div class="conv-av" style="background:linear-gradient(135deg,#1a56db,#7c3aed);font-size:18px">🔖</div>' +
+            '<div style="flex:1;min-width:0"><div class="conv-name">Saved Messages</div><div class="conv-preview">Your notes, photos and messages</div></div>' +
           '</div>';
         return;
       }
-      list.innerHTML = '';
+      // Always put Saved Messages first
+      list.innerHTML =
+        '<div class="conv-item" onclick="openSavedMessages()" style="border-bottom:1px solid var(--border)">' +
+          '<div class="conv-av" style="background:linear-gradient(135deg,#1a56db,#7c3aed);font-size:18px">🔖</div>' +
+          '<div style="flex:1;min-width:0"><div class="conv-name">Saved Messages</div><div class="conv-preview">Your notes, photos and messages</div></div>' +
+        '</div>';
       snap.forEach(function(doc) {
         var d = doc.data();
         var friendEmail = d.members.find(function(m) { return m !== user.email; });
@@ -4776,6 +4909,11 @@ function closeChatView() {
 }
 
 function sendMessage() {
+  // If in Saved Messages, use the saved messages sender
+  if (currentChatFriend && currentChatFriend.email === user.email) {
+    sendSavedMessage();
+    return;
+  }
   if (!currentChatId || !currentChatFriend) return;
   var input = document.getElementById('chat-input');
   var text = input.value.trim();
