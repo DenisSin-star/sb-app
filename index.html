@@ -2923,39 +2923,53 @@ function renderStoriesBar(bar, addBtn, storyList) {
   });
 }
 
+// ============================================================
+// IMAGE UPLOAD — Imgur anonymous API (no account needed)
+// ============================================================
+var IMGUR_CLIENT_ID = '546c25a59c58ad7';
+
+function uploadImageToImgur(base64data, callback) {
+  var base64 = base64data.split(',')[1] || base64data;
+  var formData = new FormData();
+  formData.append('image', base64);
+  formData.append('type', 'base64');
+  fetch('https://api.imgur.com/3/image', {
+    method: 'POST',
+    headers: { 'Authorization': 'Client-ID ' + IMGUR_CLIENT_ID },
+    body: formData
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success && data.data && data.data.link) {
+      callback(null, data.data.link);
+    } else {
+      callback('Upload failed');
+    }
+  })
+  .catch(function(err) { callback(err.message || 'Upload error'); });
+}
+
 function addStory(e) {
   var file = e.target.files[0];
   if (!file) return;
+  if (!fbConfigured || !db) { showToast('Firebase not connected'); return; }
+  showToast('Uploading story… ⏳');
   var reader = new FileReader();
   reader.onload = function(ev) {
-    if (!fbConfigured || !db) { showToast('Firebase not connected'); return; }
-    // Compress image before saving
-    var img = new Image();
-    img.onload = function() {
-      var canvas = document.createElement('canvas');
-      var maxSize = 600;
-      var w = img.width, h = img.height;
-      if (w > maxSize || h > maxSize) {
-        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
-        else { w = Math.round(w * maxSize / h); h = maxSize; }
-      }
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      var compressed = canvas.toDataURL('image/jpeg', 0.6);
+    uploadImageToImgur(ev.target.result, function(err, url) {
+      if (err) { showToast('Could not upload photo. Try a smaller image.'); return; }
       var storyData = {
         authorEmail: user.email,
         authorName: user.name,
-        img: compressed,
+        img: url,
         ts: Date.now(),
         likes: []
       };
       db.collection('stories').add(storyData).then(function() {
         showToast('Story posted! 📸');
         loadStoriesFromFirebase();
-      }).catch(function(e) { showToast('Could not post story: ' + (e.message || '')); });
-    };
-    img.src = ev.target.result;
+      }).catch(function() { showToast('Could not post story.'); });
+    });
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -3447,24 +3461,35 @@ function autoResizeTextarea(el) {
 function selectPostPhoto(e) {
   var file = e.target.files[0];
   if (!file) return;
+  showToast('Uploading photo… ⏳');
   var reader = new FileReader();
   reader.onload = function(ev) {
-    var img = new Image();
-    img.onload = function() {
-      var canvas = document.createElement('canvas');
-      var maxSize = 800;
-      var w = img.width, h = img.height;
-      if (w > maxSize || h > maxSize) {
-        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
-        else { w = Math.round(w * maxSize / h); h = maxSize; }
+    uploadImageToImgur(ev.target.result, function(err, url) {
+      if (err) {
+        showToast('Could not upload. Using compressed version.');
+        // fallback to compressed base64
+        var img = new Image();
+        img.onload = function() {
+          var canvas = document.createElement('canvas');
+          var maxSize = 800, w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+            else { w = Math.round(w * maxSize / h); h = maxSize; }
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          pendingPostPhoto = canvas.toDataURL('image/jpeg', 0.7);
+          document.getElementById('photo-preview-img').src = pendingPostPhoto;
+          document.getElementById('photo-preview').style.display = 'block';
+        };
+        img.src = ev.target.result;
+        return;
       }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      pendingPostPhoto = canvas.toDataURL('image/jpeg', 0.7);
-      document.getElementById('photo-preview-img').src = pendingPostPhoto;
+      pendingPostPhoto = url;
+      document.getElementById('photo-preview-img').src = url;
       document.getElementById('photo-preview').style.display = 'block';
-    };
-    img.src = ev.target.result;
+      showToast('Photo ready! ✅');
+    });
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -4099,11 +4124,30 @@ function saveNote() {
 function changeProfilePic(e) {
   var file = e.target.files[0];
   if (!file) return;
+  showToast('Uploading photo… ⏳');
   var reader = new FileReader();
   reader.onload = function(ev) {
-    user.profilePic = ev.target.result;
-    updateProfileUI();
-    showToast('Profile photo updated! 📸');
+    uploadImageToImgur(ev.target.result, function(err, url) {
+      if (err) {
+        // fallback: compressed base64
+        var img = new Image();
+        img.onload = function() {
+          var canvas = document.createElement('canvas');
+          canvas.width = 200; canvas.height = 200;
+          canvas.getContext('2d').drawImage(img, 0, 0, 200, 200);
+          user.profilePic = canvas.toDataURL('image/jpeg', 0.8);
+          saveUserToFirebase(null);
+          updateProfileUI();
+          showToast('Profile photo updated! 📸');
+        };
+        img.src = ev.target.result;
+        return;
+      }
+      user.profilePic = url;
+      saveUserToFirebase(null);
+      updateProfileUI();
+      showToast('Profile photo updated! 📸');
+    });
   };
   reader.readAsDataURL(file);
   e.target.value = '';
