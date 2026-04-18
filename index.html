@@ -3097,7 +3097,21 @@ function likeStory() {
   if (fbConfigured && db && s.id) {
     db.collection('stories').doc(s.id).update({ likes: s.likes }).catch(function() {});
   }
-  if (!liked) showToast('❤️ Liked!');
+  if (!liked) {
+    showToast('❤️ Liked!');
+    // Notify story author
+    if (s.authorEmail && s.authorEmail !== user.email) {
+      sendNotification(s.authorEmail, {
+        type: 'story_like',
+        fromEmail: user.email,
+        fromName: user.name,
+        fromUsername: user.username || '',
+        text: 'liked your story',
+        ts: Date.now(),
+        read: false
+      });
+    }
+  }
 }
 
 function pauseStoryTimer() {
@@ -3301,8 +3315,10 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
         : '') +
     '</div>' +
     '<div class="post-text">' + escapeHtml(text) + '</div>' +
-    (imgSrc ? '<img class="post-image" src="' + imgSrc + '" alt="Post image" style="cursor:pointer" onclick="savePostPhoto(\'' + imgSrc.replace(/'/g,"\\'") + '\',\'' + safeName + '\')">' : '') +
-    (imgSrc ? '<div style="font-size:11px;color:var(--text3);padding:2px 14px 4px;cursor:pointer" onclick="savePostPhoto(\'' + imgSrc.replace(/'/g,"\\'") + '\',\'' + safeName + '\')">📥 Tap photo to save</div>' : '') +
+    (imgSrc ? '<div style="position:relative">' +
+      '<img class="post-image" src="' + imgSrc + '" alt="Post image">' +
+      '<button onclick="downloadPhoto(\'' + imgSrc.replace(/'/g,"\\'") + '\')" title="Download photo" style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.5);border:none;color:#fff;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)">⬇</button>' +
+    '</div>' : '') +
     (likeCount > 0 ? '<div style="font-size:12px;color:var(--text3);padding:0 14px 6px">' + likeCount + ' like' + (likeCount > 1 ? 's' : '') + '</div>' : '') +
     '<div class="post-actions">' +
       '<button class="post-action-btn' + (liked ? ' liked' : '') + '" id="like-btn-' + safeId + '" onclick="toggleLike(\'' + safeId + '\',\'' + safeAuthor + '\',\'' + safeName + '\')">' +
@@ -3313,7 +3329,7 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
         '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
         'Comment' + (commentCount > 0 ? ' (' + commentCount + ')' : '') +
       '</button>' +
-      '<button class="post-action-btn' + (isSaved ? ' saved' : '') + '" id="save-btn-' + safeId + '" onclick="toggleSavePost(\'' + safeId + '\',\'' + safeName + '\',\'' + safeText + '\',\'' + safeAuthor + '\',this)">' +
+      '<button class="post-action-btn' + (isSaved ? ' saved' : '') + '" id="save-btn-' + safeId + '" onclick="toggleSavePost(\'' + safeId + '\',\'' + safeName + '\',\'' + safeText + '\',\'' + safeAuthor + '\',\'' + (imgSrc ? imgSrc.replace(/'/g,"\\'") : '') + '\',this)">' +
         '<svg viewBox="0 0 24 24" style="fill:' + (isSaved ? 'currentColor' : 'none') + '"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
         (isSaved ? 'Saved ✓' : 'Save') +
       '</button>' +
@@ -3518,9 +3534,11 @@ function loadNotifications() {
       list.innerHTML = '';
       notifs.forEach(function(n) {
         var d = n.data;
-        var icon = d.type === 'like' ? '❤️' : d.type === 'comment' ? '💬' : d.type === 'story_comment' ? '💬' : '🔖';
+        var icon = d.type === 'like' ? '❤️' : d.type === 'story_like' ? '❤️' : d.type === 'comment' ? '💬' : d.type === 'story_comment' ? '💬' : '🔖';
         var msg = d.type === 'like'
           ? '<b>' + escapeHtml(d.fromName) + '</b> liked your post'
+          : d.type === 'story_like'
+          ? '<b>' + escapeHtml(d.fromName) + '</b> liked your story'
           : d.type === 'comment'
           ? '<b>' + escapeHtml(d.fromName) + '</b> commented: "' + escapeHtml((d.text || '').substring(0, 40)) + '"'
           : d.type === 'story_comment'
@@ -4172,7 +4190,18 @@ function deletePost(postId, btn) {
   }).catch(function() { showToast('Could not delete post.'); });
 }
 
-function toggleSavePost(postId, from, text, authorEmail, btn) {
+function downloadPhoto(imgSrc) {
+  var a = document.createElement('a');
+  a.href = imgSrc;
+  a.download = 'socialbook-photo-' + Date.now() + '.jpg';
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('Downloading photo… 📥');
+}
+
+function toggleSavePost(postId, from, text, authorEmail, imgSrc, btn) {
   if (!user.savedPostIds) user.savedPostIds = [];
   var alreadySaved = user.savedPostIds.indexOf(postId) > -1;
   var svg = btn ? btn.querySelector('svg') : null;
@@ -4211,7 +4240,8 @@ function toggleSavePost(postId, from, text, authorEmail, btn) {
     item.setAttribute('data-post-id', postId);
     item.innerHTML =
       '<div class="saved-from"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved from ' + from + '</div>' +
-      '<div class="saved-text">' + text + '</div>';
+      (text ? '<div class="saved-text">' + text + '</div>' : '') +
+      (imgSrc ? '<img src="' + imgSrc + '" style="width:100%;border-radius:8px;margin-top:6px;max-height:200px;object-fit:cover">' : '');
     if (list) list.insertBefore(item, list.firstChild);
     // Save immediately to Firebase
     if (fbConfigured && db) {
