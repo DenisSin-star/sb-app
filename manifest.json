@@ -1,6 +1,6 @@
 {
-  "name": "socialbook",
-  "short_name": "socialbook",
+  "name": "Socialbook",
+  "short_name": "Socialbook",
   "description": "The social network for real people",
   "start_url": "/sb-app/",
   "scope": "/sb-app/",

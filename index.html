@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>socialbook</title>
+<title>Socialbook</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="socialbook">
+<meta name="apple-mobile-web-app-title" content="Socialbook">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="description" content="The social network for real people">
 <style>
@@ -1814,7 +1814,7 @@
           <div id="search-results-list">
             <div style="text-align:center;padding:40px 20px;color:var(--text3)">
               <div style="font-size:32px;margin-bottom:10px">🔍</div>
-              <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on socialbook</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on Socialbook</div>
               <div style="font-size:13px">Search by name or @username</div>
             </div>
           </div>
@@ -2597,7 +2597,7 @@ function login() {
     // Account exists — send login code
     isLoginFlow = true;
     pendingUser = { name: account.name, username: account.username, email: email, _account: account };
-    document.getElementById('verify-title').textContent = 'Log in to socialbook';
+    document.getElementById('verify-title').textContent = 'Log in to Socialbook';
     sendVerificationCode(email);
     showVerifyScreen(email);
   });
@@ -4008,7 +4008,7 @@ function searchFriends(query) {
     srList.innerHTML =
       '<div style="text-align:center;padding:40px 20px;color:var(--text3)">' +
         '<div style="font-size:32px;margin-bottom:10px">🔍</div>' +
-        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on socialbook</div>' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Find people on Socialbook</div>' +
         '<div style="font-size:13px">Search by name or @username</div>' +
       '</div>';
     return;
@@ -4050,7 +4050,7 @@ function searchFriends(query) {
       if (!results || results.length === 0) {
         srList.innerHTML =
           '<div class="no-results">No users found for "' + query + '"<br>' +
-          '<span style="font-size:12px">Make sure they have registered on socialbook</span></div>';
+          '<span style="font-size:12px">Make sure they have registered on Socialbook</span></div>';
         return;
       }
       srList.innerHTML = results.map(function(f) {
@@ -4208,7 +4208,7 @@ function downloadPhoto(imgSrc) {
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
-      a.download = 'socialbook-' + Date.now() + '.jpg';
+      a.download = 'Socialbook-' + Date.now() + '.jpg';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
