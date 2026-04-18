@@ -2079,6 +2079,15 @@
     <div class="sv-author" id="sv-author"></div>
     <button class="sv-close" onclick="closeStory()">✕</button>
     <div class="sv-content" id="sv-content"></div>
+    <!-- Story actions -->
+    <div id="sv-actions" style="position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:center;gap:24px;z-index:10">
+      <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.4);border:none;color:#fff;border-radius:50px;padding:8px 20px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)">
+        <span id="sv-like-icon">🤍</span> <span id="sv-like-count">0</span>
+      </button>
+      <button onclick="saveStoryPhoto()" style="background:rgba(0,0,0,0.4);border:none;color:#fff;border-radius:50px;padding:8px 20px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)">
+        🔖 Save
+      </button>
+    </div>
   </div>
 
   <!-- ===== MODAL ===== -->
@@ -2890,7 +2899,10 @@ function addStory(e) {
   e.target.value = '';
 }
 
+var currentStoryIndex = -1;
+
 function viewStory(index) {
+  currentStoryIndex = index;
   var s = stories[index];
   var viewer = document.getElementById('story-viewer');
   var content = document.getElementById('sv-content');
@@ -2905,6 +2917,15 @@ function viewStory(index) {
     content.innerHTML = '<div class="sv-emoji">' + s.emoji + '</div>';
   }
 
+  // Update like button
+  var likes = s.likes || [];
+  var liked = likes.indexOf(user.email) > -1;
+  document.getElementById('sv-like-icon').textContent = liked ? '❤️' : '🤍';
+  document.getElementById('sv-like-count').textContent = likes.length;
+
+  // Show save only if has image
+  document.getElementById('sv-actions').style.display = s.img ? 'flex' : 'none';
+
   viewer.style.display = 'flex';
   progress.style.transition = 'none';
   progress.style.width = '0%';
@@ -2918,8 +2939,42 @@ function viewStory(index) {
   storyTimer = setTimeout(closeStory, 3000);
 }
 
+function likeStory() {
+  if (currentStoryIndex < 0) return;
+  var s = stories[currentStoryIndex];
+  if (!s.likes) s.likes = [];
+  var liked = s.likes.indexOf(user.email) > -1;
+  if (liked) {
+    s.likes = s.likes.filter(function(e) { return e !== user.email; });
+  } else {
+    s.likes.push(user.email);
+  }
+  document.getElementById('sv-like-icon').textContent = !liked ? '❤️' : '🤍';
+  document.getElementById('sv-like-count').textContent = s.likes.length;
+  if (!liked) showToast('❤️ Liked!');
+}
+
+function saveStoryPhoto() {
+  if (currentStoryIndex < 0) return;
+  var s = stories[currentStoryIndex];
+  if (!s.img) { showToast('No photo to save'); return; }
+
+  // Save to saved tab
+  var list = document.getElementById('saved-list');
+  var empty = document.getElementById('saved-empty-state');
+  if (empty) empty.remove();
+  var item = document.createElement('div');
+  item.className = 'saved-item';
+  item.innerHTML =
+    '<div class="saved-from" style="color:var(--purple)">📸 Story by ' + s.name + '</div>' +
+    '<img src="' + s.img + '" style="width:100%;border-radius:8px;margin-top:6px;max-height:200px;object-fit:cover">';
+  if (list) list.insertBefore(item, list.firstChild);
+  showToast('Story saved! 🔖');
+}
+
 function closeStory() {
   document.getElementById('story-viewer').style.display = 'none';
+  currentStoryIndex = -1;
   clearTimeout(storyTimer);
 }
 
@@ -3047,7 +3102,8 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
       '<div class="post-meta"><div class="post-name">' + name + '</div><div class="post-time">' + time + '</div></div>' +
     '</div>' +
     '<div class="post-text">' + escapeHtml(text) + '</div>' +
-    (imgSrc ? '<img class="post-image" src="' + imgSrc + '" alt="Post image">' : '') +
+    (imgSrc ? '<img class="post-image" src="' + imgSrc + '" alt="Post image" style="cursor:pointer" onclick="savePostPhoto(\'' + imgSrc.replace(/'/g,"\\'") + '\',\'' + safeName + '\')">' : '') +
+    (imgSrc ? '<div style="font-size:11px;color:var(--text3);padding:2px 14px 4px;cursor:pointer" onclick="savePostPhoto(\'' + imgSrc.replace(/'/g,"\\'") + '\',\'' + safeName + '\')">📥 Tap photo to save</div>' : '') +
     (likeCount > 0 ? '<div style="font-size:12px;color:var(--text3);padding:0 14px 6px">' + likeCount + ' like' + (likeCount > 1 ? 's' : '') + '</div>' : '') +
     '<div class="post-actions">' +
       '<button class="post-action-btn' + (liked ? ' liked' : '') + '" id="like-btn-' + safeId + '" onclick="toggleLike(\'' + safeId + '\',\'' + safeAuthor + '\',\'' + safeName + '\')">' +
@@ -3862,6 +3918,19 @@ function renderSaved() {
       '<div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px">Nothing saved yet</div>' +
       '<div style="font-size:13px">Save posts or write notes to find them here.</div>' +
     '</div>';
+}
+
+function savePostPhoto(imgSrc, authorName) {
+  var list = document.getElementById('saved-list');
+  var empty = document.getElementById('saved-empty-state');
+  if (empty) empty.remove();
+  var item = document.createElement('div');
+  item.className = 'saved-item';
+  item.innerHTML =
+    '<div class="saved-from" style="color:var(--blue)">📷 Photo by ' + escapeHtml(authorName) + '</div>' +
+    '<img src="' + imgSrc + '" style="width:100%;border-radius:8px;margin-top:6px;max-height:240px;object-fit:cover">';
+  if (list) list.insertBefore(item, list.firstChild);
+  showToast('Photo saved! 📷');
 }
 
 function toggleSavePost(postId, from, text, authorEmail, btn) {
