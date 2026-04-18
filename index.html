@@ -3199,12 +3199,14 @@ function startNotifListener() {
   if (!fbConfigured || !db || !user.email) return;
   if (notifListenerUnsub) notifListenerUnsub();
 
+  // Simple query — no composite index needed
   notifListenerUnsub = db.collection('notifications')
     .where('toEmail', '==', user.email)
-    .where('read', '==', false)
     .onSnapshot(function(snap) {
+      var unread = 0;
+      snap.forEach(function(doc) { if (!doc.data().read) unread++; });
       var badge = document.getElementById('notif-badge');
-      if (badge) badge.style.visibility = snap.size > 0 ? 'visible' : 'hidden';
+      if (badge) badge.style.visibility = unread > 0 ? 'visible' : 'hidden';
     }, function() {});
 }
 
@@ -3221,47 +3223,52 @@ function loadNotifications() {
   var list = document.getElementById('notif-list');
   list.innerHTML = '<div style="padding:16px;text-align:center;font-size:13px;color:var(--text3)">Loading…</div>';
 
+  // Simple query without orderBy — sort client-side
   db.collection('notifications')
     .where('toEmail', '==', user.email)
-    .orderBy('ts', 'desc')
-    .limit(30)
     .get()
     .then(function(snap) {
       if (snap.empty) {
         list.innerHTML = '<div style="padding:24px;text-align:center;font-size:13px;color:var(--text3)">No notifications yet</div>';
         return;
       }
+
+      // Sort by ts descending client-side
+      var notifs = [];
+      snap.forEach(function(doc) { notifs.push({ id: doc.id, ref: doc.ref, data: doc.data() }); });
+      notifs.sort(function(a, b) { return b.data.ts - a.data.ts; });
+      notifs = notifs.slice(0, 30);
+
       list.innerHTML = '';
-      snap.forEach(function(doc) {
-        var n = doc.data();
-        var icon = n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : '🔖';
-        var msg = n.type === 'like'
-          ? '<b>' + escapeHtml(n.fromName) + '</b> liked your post'
-          : n.type === 'comment'
-          ? '<b>' + escapeHtml(n.fromName) + '</b> commented: "' + escapeHtml((n.text || '').substring(0, 40)) + '"'
-          : '<b>' + escapeHtml(n.fromName) + '</b> saved your post';
+      notifs.forEach(function(n) {
+        var d = n.data;
+        var icon = d.type === 'like' ? '❤️' : d.type === 'comment' ? '💬' : '🔖';
+        var msg = d.type === 'like'
+          ? '<b>' + escapeHtml(d.fromName) + '</b> liked your post'
+          : d.type === 'comment'
+          ? '<b>' + escapeHtml(d.fromName) + '</b> commented: "' + escapeHtml((d.text || '').substring(0, 40)) + '"'
+          : '<b>' + escapeHtml(d.fromName) + '</b> saved your post';
 
         var div = document.createElement('div');
-        div.style.cssText = 'display:flex;gap:10px;padding:10px 14px;align-items:flex-start;background:' + (n.read ? 'transparent' : 'var(--blue-light, #e8f0fe)') + ';border-bottom:1px solid var(--border)';
+        div.style.cssText = 'display:flex;gap:10px;padding:10px 14px;align-items:flex-start;background:' + (!d.read ? '#e8f0fe' : 'transparent') + ';border-bottom:1px solid var(--border)';
         div.innerHTML =
           '<div style="font-size:20px;flex-shrink:0">' + icon + '</div>' +
           '<div style="flex:1">' +
             '<div style="font-size:13px">' + msg + '</div>' +
-            '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + timeAgo(n.ts) + '</div>' +
+            '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + timeAgo(d.ts) + '</div>' +
           '</div>';
         list.appendChild(div);
       });
 
       // Mark all as read
-      snap.forEach(function(doc) {
-        if (!doc.data().read) {
-          doc.ref.update({ read: true }).catch(function() {});
-        }
+      notifs.forEach(function(n) {
+        if (!n.data.read) n.ref.update({ read: true }).catch(function() {});
       });
       var badge = document.getElementById('notif-badge');
       if (badge) badge.style.visibility = 'hidden';
-    }).catch(function() {
+    }).catch(function(e) {
       list.innerHTML = '<div style="padding:16px;text-align:center;font-size:13px;color:var(--text3)">Could not load notifications.</div>';
+      console.error('notif error', e);
     });
 }
 
@@ -3269,10 +3276,11 @@ function markAllNotifsRead() {
   if (!fbConfigured || !db) return;
   db.collection('notifications')
     .where('toEmail', '==', user.email)
-    .where('read', '==', false)
     .get()
     .then(function(snap) {
-      snap.forEach(function(doc) { doc.ref.update({ read: true }).catch(function() {}); });
+      snap.forEach(function(doc) {
+        if (!doc.data().read) doc.ref.update({ read: true }).catch(function() {});
+      });
       var badge = document.getElementById('notif-badge');
       if (badge) badge.style.visibility = 'hidden';
       loadNotifications();
