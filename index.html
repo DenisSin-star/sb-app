@@ -2599,9 +2599,9 @@ function verifyCode() {
   clearInterval(resendInterval);
 
   if (isLoginFlow) {
-    // ✅ Login — load account from Firebase
     var account = pendingUser._account;
     user = account;
+    if (!user.savedPostIds) user.savedPostIds = [];
     if (user.friendsList && user.friendsList.length > 0) {
       var seen = {};
       user.friendsList = user.friendsList.filter(function(f) {
@@ -2669,6 +2669,7 @@ function loginWithPassword() {
     }
     // ✅ Success
     user = account;
+    if (!user.savedPostIds) user.savedPostIds = [];
     if (user.friendsList && user.friendsList.length > 0) {
       var seen = {};
       user.friendsList = user.friendsList.filter(function(f) {
@@ -4434,6 +4435,7 @@ document.addEventListener('keydown', function(e) {
       loadUserFromFirebase(session, function(account) {
         if (account && account.verified) {
           user = account;
+          if (!user.savedPostIds) user.savedPostIds = [];
           document.getElementById('auth-screen').style.display = 'none';
           document.getElementById('app').style.display = 'flex';
           document.getElementById('app').style.flexDirection = 'column';
