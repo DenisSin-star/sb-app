@@ -2929,17 +2929,33 @@ function addStory(e) {
   var reader = new FileReader();
   reader.onload = function(ev) {
     if (!fbConfigured || !db) { showToast('Firebase not connected'); return; }
-    var storyData = {
-      authorEmail: user.email,
-      authorName: user.name,
-      img: ev.target.result,
-      ts: Date.now(),
-      likes: []
+    // Compress image before saving
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var maxSize = 600;
+      var w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL('image/jpeg', 0.6);
+      var storyData = {
+        authorEmail: user.email,
+        authorName: user.name,
+        img: compressed,
+        ts: Date.now(),
+        likes: []
+      };
+      db.collection('stories').add(storyData).then(function() {
+        showToast('Story posted! 📸');
+        loadStoriesFromFirebase();
+      }).catch(function(e) { showToast('Could not post story: ' + (e.message || '')); });
     };
-    db.collection('stories').add(storyData).then(function() {
-      showToast('Story posted! 📸');
-      loadStoriesFromFirebase();
-    }).catch(function() { showToast('Could not post story.'); });
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -3433,9 +3449,22 @@ function selectPostPhoto(e) {
   if (!file) return;
   var reader = new FileReader();
   reader.onload = function(ev) {
-    pendingPostPhoto = ev.target.result;
-    document.getElementById('photo-preview-img').src = ev.target.result;
-    document.getElementById('photo-preview').style.display = 'block';
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var maxSize = 800;
+      var w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      pendingPostPhoto = canvas.toDataURL('image/jpeg', 0.7);
+      document.getElementById('photo-preview-img').src = pendingPostPhoto;
+      document.getElementById('photo-preview').style.display = 'block';
+    };
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
   e.target.value = '';
