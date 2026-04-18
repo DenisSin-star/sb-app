@@ -1090,9 +1090,6 @@
   }
 
   .sv-author {
-    position: absolute;
-    top: 28px;
-    left: 16px;
     color: #fff;
     font-size: 14px;
     font-weight: 600;
@@ -1100,21 +1097,12 @@
   }
 
   .sv-close {
-    position: absolute;
-    top: 20px;
-    right: 14px;
-    background: rgba(255,255,255,0.15);
+    background: none;
     border: none;
-    border-radius: 50%;
-    width: 34px;
-    height: 34px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     color: #fff;
     font-size: 20px;
     cursor: pointer;
-    line-height: 1;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
   }
 
   .sv-content {
@@ -2076,12 +2064,27 @@
     <div class="sv-progress-bar">
       <div class="sv-progress-fill" id="sv-progress"></div>
     </div>
-    <div class="sv-author" id="sv-author"></div>
-    <button class="sv-close" onclick="closeStory()">✕</button>
+    <!-- Header: author + delete -->
+    <div style="position:absolute;top:14px;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:0 14px;z-index:10">
+      <div class="sv-author" id="sv-author" style="position:static;margin:0"></div>
+      <div style="display:flex;gap:8px">
+        <button id="sv-delete-btn" onclick="deleteStory()" style="display:none;background:rgba(200,0,0,0.6);border:none;color:#fff;border-radius:50px;padding:5px 12px;font-size:12px;cursor:pointer;backdrop-filter:blur(4px)">🗑 Delete</button>
+        <button class="sv-close" onclick="closeStory()" style="position:static;margin:0">✕</button>
+      </div>
+    </div>
+
+    <!-- Tap zones for prev/next -->
+    <div onclick="prevStory()" style="position:absolute;left:0;top:0;width:35%;height:100%;z-index:5;cursor:pointer"></div>
+    <div onclick="nextStory()" style="position:absolute;right:0;top:0;width:35%;height:100%;z-index:5;cursor:pointer"></div>
+
     <div class="sv-content" id="sv-content"></div>
-    <!-- Story actions: like + comment -->
+
+    <!-- Comments list -->
+    <div id="sv-comments-list" style="position:absolute;bottom:70px;left:0;right:0;max-height:140px;overflow-y:auto;padding:0 14px;z-index:10"></div>
+
+    <!-- Actions: like + comment -->
     <div id="sv-actions" style="position:absolute;bottom:16px;left:0;right:0;display:flex;align-items:center;gap:8px;padding:0 14px;z-index:10">
-      <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.45);border:none;color:#fff;border-radius:50px;padding:8px 16px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);flex-shrink:0">
+      <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.45);border:none;color:#fff;border-radius:50px;padding:8px 14px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);flex-shrink:0">
         <span id="sv-like-icon">🤍</span><span id="sv-like-count">0</span>
       </button>
       <div style="flex:1;display:flex;align-items:center;background:rgba(0,0,0,0.45);border-radius:50px;padding:6px 14px;backdrop-filter:blur(4px)">
@@ -2981,36 +2984,45 @@ function addStory(e) {
 }
 
 var currentStoryIndex = -1;
+var storyCommentsUnsub = null;
+var storyPaused = false;
+var storyTimeRemaining = 7000;
+var storyStartTime = null;
 
 function viewStory(index) {
+  if (index < 0 || index >= stories.length) { closeStory(); return; }
   currentStoryIndex = index;
   var s = stories[index];
-  var viewer = document.getElementById('story-viewer');
-  var content = document.getElementById('sv-content');
-  var author = document.getElementById('sv-author');
+  var content  = document.getElementById('sv-content');
   var progress = document.getElementById('sv-progress');
 
-  author.textContent = s.authorName || s.name || '';
+  document.getElementById('sv-author').textContent = s.authorName || s.name || '';
 
-  if (s.img) {
-    content.innerHTML = '<img src="' + s.img + '" alt="story">';
-  } else {
-    content.innerHTML = '<div class="sv-emoji">' + (s.emoji || '📸') + '</div>';
-  }
+  content.innerHTML = s.img
+    ? '<img src="' + s.img + '" alt="story">'
+    : '<div class="sv-emoji">' + (s.emoji || '📸') + '</div>';
 
+  // Show delete button only for own stories
+  var delBtn = document.getElementById('sv-delete-btn');
+  if (delBtn) delBtn.style.display = (s.authorEmail === user.email) ? 'block' : 'none';
+
+  // Like button
   var likes = s.likes || [];
   var liked = likes.indexOf(user.email) > -1;
   document.getElementById('sv-like-icon').textContent = liked ? '❤️' : '🤍';
   document.getElementById('sv-like-count').textContent = likes.length;
   document.getElementById('sv-comment-input').value = '';
   document.getElementById('sv-actions').style.display = 'flex';
+
+  // Load comments
+  loadStoryComments(s.id);
+
+  document.getElementById('story-viewer').style.display = 'flex';
+  progress.style.transition = 'none';
+  progress.style.width = '0%';
   storyPaused = false;
   storyTimeRemaining = 7000;
   storyStartTime = Date.now();
-
-  viewer.style.display = 'flex';
-  progress.style.transition = 'none';
-  progress.style.width = '0%';
 
   setTimeout(function() {
     progress.style.transition = 'width 7s linear';
@@ -3018,7 +3030,56 @@ function viewStory(index) {
   }, 30);
 
   clearTimeout(storyTimer);
-  storyTimer = setTimeout(closeStory, 7000);
+  storyTimer = setTimeout(function() { nextStory(); }, 7000);
+}
+
+function prevStory() {
+  clearTimeout(storyTimer);
+  viewStory(currentStoryIndex - 1);
+}
+
+function nextStory() {
+  clearTimeout(storyTimer);
+  if (currentStoryIndex < stories.length - 1) {
+    viewStory(currentStoryIndex + 1);
+  } else {
+    closeStory();
+  }
+}
+
+function loadStoryComments(storyId) {
+  var list = document.getElementById('sv-comments-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!storyId || !fbConfigured || !db) return;
+  if (storyCommentsUnsub) { storyCommentsUnsub(); storyCommentsUnsub = null; }
+
+  storyCommentsUnsub = db.collection('stories').doc(storyId)
+    .collection('comments').orderBy('ts', 'asc')
+    .onSnapshot(function(snap) {
+      list.innerHTML = '';
+      snap.forEach(function(doc) {
+        var c = doc.data();
+        var div = document.createElement('div');
+        div.style.cssText = 'color:#fff;font-size:12px;padding:2px 0;text-shadow:0 1px 3px rgba(0,0,0,0.9)';
+        div.innerHTML = '<b>' + escapeHtml(c.authorName) + '</b> ' + escapeHtml(c.text);
+        list.appendChild(div);
+      });
+      list.scrollTop = list.scrollHeight;
+    }, function() {});
+}
+
+function deleteStory() {
+  if (currentStoryIndex < 0) return;
+  var s = stories[currentStoryIndex];
+  if (!s.id || s.authorEmail !== user.email) return;
+  if (!confirm('Delete this story?')) return;
+  clearTimeout(storyTimer);
+  db.collection('stories').doc(s.id).delete().then(function() {
+    showToast('Story deleted');
+    closeStory();
+    loadStoriesFromFirebase();
+  }).catch(function() { showToast('Could not delete story.'); });
 }
 
 function likeStory() {
@@ -3038,10 +3099,6 @@ function likeStory() {
   }
   if (!liked) showToast('❤️ Liked!');
 }
-
-var storyPaused = false;
-var storyTimeRemaining = 7000;
-var storyStartTime = null;
 
 function pauseStoryTimer() {
   if (storyPaused) return;
@@ -3114,6 +3171,7 @@ function closeStory() {
   document.getElementById('story-viewer').style.display = 'none';
   currentStoryIndex = -1;
   clearTimeout(storyTimer);
+  if (storyCommentsUnsub) { storyCommentsUnsub(); storyCommentsUnsub = null; }
 }
 
 // ============================================================
@@ -3238,6 +3296,9 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
     '<div class="post-header">' +
       '<div class="post-av" style="background:#e8f0fe;color:#1a56db">' + initials + '</div>' +
       '<div class="post-meta"><div class="post-name">' + name + '</div><div class="post-time">' + time + '</div></div>' +
+      (authorEmail === user.email
+        ? '<button onclick="deletePost(\'' + safeId + '\',this)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px 8px;margin-left:auto" title="Delete post">🗑</button>'
+        : '') +
     '</div>' +
     '<div class="post-text">' + escapeHtml(text) + '</div>' +
     (imgSrc ? '<img class="post-image" src="' + imgSrc + '" alt="Post image" style="cursor:pointer" onclick="savePostPhoto(\'' + imgSrc.replace(/'/g,"\\'") + '\',\'' + safeName + '\')">' : '') +
@@ -4095,6 +4156,20 @@ function savePostPhoto(imgSrc, authorName) {
     '<img src="' + imgSrc + '" style="width:100%;border-radius:8px;margin-top:6px;max-height:240px;object-fit:cover">';
   if (list) list.insertBefore(item, list.firstChild);
   showToast('Photo saved! 📷');
+}
+
+function deletePost(postId, btn) {
+  if (!postId || !fbConfigured || !db) return;
+  if (!confirm('Delete this post?')) return;
+  db.collection('posts').doc(postId).delete().then(function() {
+    // Remove card from UI
+    var card = btn ? btn.closest('.post-card') : null;
+    if (card) card.remove();
+    user.posts = Math.max(0, (user.posts || 1) - 1);
+    document.getElementById('stat-posts').textContent = user.posts;
+    saveUserToFirebase(null);
+    showToast('Post deleted');
+  }).catch(function() { showToast('Could not delete post.'); });
 }
 
 function toggleSavePost(postId, from, text, authorEmail, btn) {
