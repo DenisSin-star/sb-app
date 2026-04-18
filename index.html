@@ -2079,14 +2079,17 @@
     <div class="sv-author" id="sv-author"></div>
     <button class="sv-close" onclick="closeStory()">✕</button>
     <div class="sv-content" id="sv-content"></div>
-    <!-- Story actions -->
-    <div id="sv-actions" style="position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:center;gap:24px;z-index:10">
-      <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.4);border:none;color:#fff;border-radius:50px;padding:8px 20px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)">
-        <span id="sv-like-icon">🤍</span> <span id="sv-like-count">0</span>
+    <!-- Story actions: like + comment -->
+    <div id="sv-actions" style="position:absolute;bottom:16px;left:0;right:0;display:flex;align-items:center;gap:8px;padding:0 14px;z-index:10">
+      <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.45);border:none;color:#fff;border-radius:50px;padding:8px 16px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);flex-shrink:0">
+        <span id="sv-like-icon">🤍</span><span id="sv-like-count">0</span>
       </button>
-      <button onclick="saveStoryPhoto()" style="background:rgba(0,0,0,0.4);border:none;color:#fff;border-radius:50px;padding:8px 20px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px)">
-        🔖 Save
-      </button>
+      <div style="flex:1;display:flex;align-items:center;background:rgba(0,0,0,0.45);border-radius:50px;padding:6px 14px;backdrop-filter:blur(4px)">
+        <input id="sv-comment-input" type="text" placeholder="Comment…" maxlength="200"
+          style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:13px;font-family:'DM Sans',sans-serif"
+          onkeydown="storyCommentKeydown(event)">
+        <button onclick="submitStoryComment()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:18px;padding:0 0 0 8px">➤</button>
+      </div>
     </div>
   </div>
 
@@ -2993,25 +2996,24 @@ function viewStory(index) {
     content.innerHTML = '<div class="sv-emoji">' + (s.emoji || '📸') + '</div>';
   }
 
-  // Update like button
   var likes = s.likes || [];
   var liked = likes.indexOf(user.email) > -1;
   document.getElementById('sv-like-icon').textContent = liked ? '❤️' : '🤍';
   document.getElementById('sv-like-count').textContent = likes.length;
-
-  document.getElementById('sv-actions').style.display = s.img ? 'flex' : 'none';
+  document.getElementById('sv-comment-input').value = '';
+  document.getElementById('sv-actions').style.display = 'flex';
 
   viewer.style.display = 'flex';
   progress.style.transition = 'none';
   progress.style.width = '0%';
 
   setTimeout(function() {
-    progress.style.transition = 'width 3s linear';
+    progress.style.transition = 'width 7s linear';
     progress.style.width = '100%';
   }, 30);
 
   clearTimeout(storyTimer);
-  storyTimer = setTimeout(closeStory, 3000);
+  storyTimer = setTimeout(closeStory, 7000);
 }
 
 function likeStory() {
@@ -3026,30 +3028,43 @@ function likeStory() {
   }
   document.getElementById('sv-like-icon').textContent = !liked ? '❤️' : '🤍';
   document.getElementById('sv-like-count').textContent = s.likes.length;
-
-  // Save likes to Firebase
   if (fbConfigured && db && s.id) {
     db.collection('stories').doc(s.id).update({ likes: s.likes }).catch(function() {});
   }
   if (!liked) showToast('❤️ Liked!');
 }
 
-function saveStoryPhoto() {
+function storyCommentKeydown(e) {
+  if (e.key === 'Enter') { e.preventDefault(); submitStoryComment(); }
+}
+
+function submitStoryComment() {
   if (currentStoryIndex < 0) return;
   var s = stories[currentStoryIndex];
-  if (!s.img) { showToast('No photo to save'); return; }
-
-  // Save to saved tab
-  var list = document.getElementById('saved-list');
-  var empty = document.getElementById('saved-empty-state');
-  if (empty) empty.remove();
-  var item = document.createElement('div');
-  item.className = 'saved-item';
-  item.innerHTML =
-    '<div class="saved-from" style="color:var(--purple)">📸 Story by ' + escapeHtml(s.authorName || s.name || 'Unknown') + '</div>' +
-    '<img src="' + s.img + '" style="width:100%;border-radius:8px;margin-top:6px;max-height:200px;object-fit:cover">';
-  if (list) list.insertBefore(item, list.firstChild);
-  showToast('Story saved! 🔖');
+  var input = document.getElementById('sv-comment-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  if (!fbConfigured || !db || !s.id) { showToast('Could not post comment.'); return; }
+  db.collection('stories').doc(s.id).collection('comments').add({
+    authorEmail: user.email,
+    authorName: user.name,
+    text: text,
+    ts: Date.now()
+  }).then(function() {
+    showToast('Comment sent! 💬');
+    if (s.authorEmail && s.authorEmail !== user.email) {
+      sendNotification(s.authorEmail, {
+        type: 'story_comment',
+        fromEmail: user.email,
+        fromName: user.name,
+        fromUsername: user.username || '',
+        text: text.substring(0, 60),
+        ts: Date.now(),
+        read: false
+      });
+    }
+  }).catch(function() { showToast('Could not post comment.'); });
 }
 
 function closeStory() {
@@ -3399,11 +3414,13 @@ function loadNotifications() {
       list.innerHTML = '';
       notifs.forEach(function(n) {
         var d = n.data;
-        var icon = d.type === 'like' ? '❤️' : d.type === 'comment' ? '💬' : '🔖';
+        var icon = d.type === 'like' ? '❤️' : d.type === 'comment' ? '💬' : d.type === 'story_comment' ? '💬' : '🔖';
         var msg = d.type === 'like'
           ? '<b>' + escapeHtml(d.fromName) + '</b> liked your post'
           : d.type === 'comment'
           ? '<b>' + escapeHtml(d.fromName) + '</b> commented: "' + escapeHtml((d.text || '').substring(0, 40)) + '"'
+          : d.type === 'story_comment'
+          ? '<b>' + escapeHtml(d.fromName) + '</b> commented on your story: "' + escapeHtml((d.text || '').substring(0, 40)) + '"'
           : '<b>' + escapeHtml(d.fromName) + '</b> saved your post';
 
         var div = document.createElement('div');
