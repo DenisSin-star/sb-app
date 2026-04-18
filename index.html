@@ -3001,6 +3001,7 @@ function addStory(e) {
 
 var currentStoryIndex = -1;
 var storyCommentsUnsub = null;
+var seenStoryIds = new Set();
 
 function viewStory(index) {
 var storyPaused = false;
