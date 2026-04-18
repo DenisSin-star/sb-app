@@ -1,4 +1,4 @@
-const CACHE_NAME = 'socialbook-v1';
+const CACHE_NAME = 'socialbook-v2';
 const ASSETS = [
   '/sb-app/',
   '/sb-app/index.html'
