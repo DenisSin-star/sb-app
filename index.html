@@ -3018,7 +3018,18 @@ function addStory(e) {
 
 var currentStoryIndex = -1;
 var storyCommentsUnsub = null;
-var seenStoryIds = new Set();
+var seenStoryIds = new Set(JSON.parse(localStorage.getItem('seenStoryIds') || '[]'));
+
+function markStorySeen(storyId) {
+  if (!storyId) return;
+  seenStoryIds.add(storyId);
+  // Clean up expired IDs (older than 24h) — keep only IDs that still exist in stories
+  var validIds = stories.map(function(s) { return s.id; });
+  seenStoryIds.forEach(function(id) {
+    if (validIds.indexOf(id) === -1) seenStoryIds.delete(id);
+  });
+  localStorage.setItem('seenStoryIds', JSON.stringify(Array.from(seenStoryIds)));
+}
 var storyPaused = false;
 var storyTimeRemaining = 7000;
 var storyStartTime = null;
@@ -3029,7 +3040,7 @@ function viewStory(index) {
   var s = stories[index];
 
   // Mark as seen
-  if (s.id) seenStoryIds.add(s.id);
+  if (s.id) markStorySeen(s.id);
   // Update the ring in the stories bar to grey
   var rings = document.querySelectorAll('.story-ring');
   if (rings[index]) {
