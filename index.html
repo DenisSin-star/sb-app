@@ -571,6 +571,7 @@
 
   .post-action-btn:hover { background: var(--surface2); }
   .post-action-btn.liked { color: var(--red); }
+  .post-action-btn.saved { color: var(--amber); }
   .post-action-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; }
 
   /* ===== FRIENDS ===== */
@@ -3038,7 +3039,7 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
         '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
         'Comment' + (commentCount > 0 ? ' (' + commentCount + ')' : '') +
       '</button>' +
-      '<button class="post-action-btn" onclick="savePostToSaved(\'' + safeName + '\',\'' + safeText + '\')">' +
+      '<button class="post-action-btn" id="save-btn-' + safeId + '" onclick="savePostToSaved(\'' + safeId + '\',\'' + safeName + '\',\'' + safeText + '\',\'' + safeAuthor + '\',this)">' +
         '<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Save' +
       '</button>' +
     '</div>';
@@ -3843,7 +3844,17 @@ function renderSaved() {
     '</div>';
 }
 
-function savePostToSaved(from, text) {
+function savePostToSaved(postId, from, text, authorEmail, btn) {
+  // Update button UI immediately
+  if (btn) {
+    btn.classList.add('saved');
+    var svg = btn.querySelector('svg');
+    if (svg) svg.style.fill = 'currentColor';
+    btn.innerHTML = btn.innerHTML.replace(/>Save</, '>Saved ✓<');
+    btn.onclick = function() { showToast('Already saved!'); };
+  }
+
+  // Add to saved list in Saved tab
   var list = document.getElementById('saved-list');
   var empty = document.getElementById('saved-empty-state');
   if (empty) empty.remove();
@@ -3854,6 +3865,20 @@ function savePostToSaved(from, text) {
     '<div class="saved-text">' + text + '</div>';
   list.insertBefore(item, list.firstChild);
   showToast('Post saved! 🔖');
+
+  // Send notification to post author (not yourself)
+  if (authorEmail && authorEmail !== user.email && fbConfigured && db) {
+    sendNotification(authorEmail, {
+      type: 'save',
+      fromEmail: user.email,
+      fromName: user.name,
+      fromUsername: user.username || '',
+      postId: postId || '',
+      text: (text || '').substring(0, 60),
+      ts: Date.now(),
+      read: false
+    });
+  }
 }
 
 function saveNote() {
