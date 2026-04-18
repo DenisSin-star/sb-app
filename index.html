@@ -2864,23 +2864,61 @@ function switchTab(tab) {
 // STORIES
 // ============================================================
 function renderStories() {
+  loadStoriesFromFirebase();
+}
+
+function loadStoriesFromFirebase() {
+  if (!fbConfigured || !db) return;
   var bar = document.getElementById('stories-bar');
-  // Keep the "add story" button (first child)
   var addBtn = bar.children[0];
+
+  // Load stories from friends + self, posted in last 24 hours
+  var friendEmails = (user.friendsList || []).map(function(f) { return f.email; });
+  var feedEmails = [user.email].concat(friendEmails);
+  var cutoff = Date.now() - 24 * 60 * 60 * 1000;
+
+  var chunks = [];
+  for (var i = 0; i < feedEmails.length; i += 10) chunks.push(feedEmails.slice(i, i + 10));
+
+  var allStories = [];
+  var pending = chunks.length;
+  if (pending === 0) { renderStoriesBar(bar, addBtn, []); return; }
+
+  chunks.forEach(function(chunk) {
+    db.collection('stories').where('authorEmail', 'in', chunk).get()
+      .then(function(snap) {
+        snap.forEach(function(doc) {
+          var d = Object.assign({ id: doc.id }, doc.data());
+          if (d.ts && d.ts > cutoff) allStories.push(d);
+        });
+        pending--;
+        if (pending === 0) {
+          allStories.sort(function(a, b) { return b.ts - a.ts; });
+          // Put own stories first
+          var mine = allStories.filter(function(s) { return s.authorEmail === user.email; });
+          var others = allStories.filter(function(s) { return s.authorEmail !== user.email; });
+          stories = mine.concat(others);
+          renderStoriesBar(bar, addBtn, stories);
+        }
+      }).catch(function() { pending--; });
+  });
+}
+
+function renderStoriesBar(bar, addBtn, storyList) {
   bar.innerHTML = '';
   bar.appendChild(addBtn);
-
-  stories.forEach(function(s, i) {
+  storyList.forEach(function(s, i) {
     var item = document.createElement('div');
     item.className = 'story-item';
     var avatarContent = s.img
-      ? '<img src="' + s.img + '" alt="' + s.name + '">'
-      : '<span style="font-size:13px;font-weight:600;color:' + s.textColor + '">' + s.initials + '</span>';
+      ? '<img src="' + s.img + '" alt="' + s.authorName + '">'
+      : '<span style="font-size:13px;font-weight:600;color:#1a56db">' + getInitials(s.authorName) + '</span>';
+    var isOwn = s.authorEmail === user.email;
     item.innerHTML =
-      '<div class="story-ring unseen" onclick="viewStory(' + i + ')" style="cursor:pointer">' +
-        '<div class="story-avatar" style="background:' + s.color + '">' + avatarContent + '</div>' +
+      '<div class="story-ring ' + (isOwn ? '' : 'unseen') + '" onclick="viewStory(' + i + ')" style="cursor:pointer">' +
+        '<div class="story-avatar" style="background:#e8f0fe">' + avatarContent + '</div>' +
       '</div>' +
-      '<span class="story-name">' + s.name + '</span>';
+      '<span class="story-name">' + (isOwn ? 'Your story' : s.authorName.split(' ')[0]) + '</span>';
     bar.appendChild(item);
   });
 }
@@ -2890,10 +2928,18 @@ function addStory(e) {
   if (!file) return;
   var reader = new FileReader();
   reader.onload = function(ev) {
-    var initials = getInitials(user.name) || 'ME';
-    stories.unshift({ initials: initials, name: 'Your story', color: '#e8f0fe', textColor: '#1a56db', emoji: '📸', img: ev.target.result });
-    renderStories();
-    showToast('Story posted! 📸');
+    if (!fbConfigured || !db) { showToast('Firebase not connected'); return; }
+    var storyData = {
+      authorEmail: user.email,
+      authorName: user.name,
+      img: ev.target.result,
+      ts: Date.now(),
+      likes: []
+    };
+    db.collection('stories').add(storyData).then(function() {
+      showToast('Story posted! 📸');
+      loadStoriesFromFirebase();
+    }).catch(function() { showToast('Could not post story.'); });
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -2909,12 +2955,12 @@ function viewStory(index) {
   var author = document.getElementById('sv-author');
   var progress = document.getElementById('sv-progress');
 
-  author.textContent = s.name;
+  author.textContent = s.authorName || s.name || '';
 
   if (s.img) {
-    content.innerHTML = '<img src="' + s.img + '" alt="' + s.name + '">';
+    content.innerHTML = '<img src="' + s.img + '" alt="story">';
   } else {
-    content.innerHTML = '<div class="sv-emoji">' + s.emoji + '</div>';
+    content.innerHTML = '<div class="sv-emoji">' + (s.emoji || '📸') + '</div>';
   }
 
   // Update like button
@@ -2923,7 +2969,6 @@ function viewStory(index) {
   document.getElementById('sv-like-icon').textContent = liked ? '❤️' : '🤍';
   document.getElementById('sv-like-count').textContent = likes.length;
 
-  // Show save only if has image
   document.getElementById('sv-actions').style.display = s.img ? 'flex' : 'none';
 
   viewer.style.display = 'flex';
@@ -2951,6 +2996,11 @@ function likeStory() {
   }
   document.getElementById('sv-like-icon').textContent = !liked ? '❤️' : '🤍';
   document.getElementById('sv-like-count').textContent = s.likes.length;
+
+  // Save likes to Firebase
+  if (fbConfigured && db && s.id) {
+    db.collection('stories').doc(s.id).update({ likes: s.likes }).catch(function() {});
+  }
   if (!liked) showToast('❤️ Liked!');
 }
 
@@ -2966,7 +3016,7 @@ function saveStoryPhoto() {
   var item = document.createElement('div');
   item.className = 'saved-item';
   item.innerHTML =
-    '<div class="saved-from" style="color:var(--purple)">📸 Story by ' + s.name + '</div>' +
+    '<div class="saved-from" style="color:var(--purple)">📸 Story by ' + escapeHtml(s.authorName || s.name || 'Unknown') + '</div>' +
     '<img src="' + s.img + '" style="width:100%;border-radius:8px;margin-top:6px;max-height:200px;object-fit:cover">';
   if (list) list.insertBefore(item, list.firstChild);
   showToast('Story saved! 🔖');
