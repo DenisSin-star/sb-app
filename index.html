@@ -2224,7 +2224,7 @@ function loadUserData() {
 // ============================================================
 // STATE
 // ============================================================
-var user = { name: '', username: '', email: '', password: '', tickets: 0, nfts: [], posts: 0, friends: 0, lastNameChange: null, lastUsernameChange: null };
+var user = { name: '', username: '', email: '', password: '', tickets: 0, nfts: [], posts: 0, friends: 0, lastNameChange: null, lastUsernameChange: null, savedPostIds: [] };
 var selectedPack = null;
 var pendingPostPhoto = null; // base64 string
 var storyTimer = null;
@@ -3003,15 +3003,20 @@ function timeAgo(ts) {
 function renderPostsList(container, posts) {
   if (posts.length === 0) { showEmptyFeed(container); return; }
   container.innerHTML = '';
+
+  // Get user's saved post IDs for this render
+  var savedIds = user.savedPostIds || [];
+
   posts.forEach(function(p) {
     var timeStr = p.ts ? timeAgo(p.ts) : 'just now';
     var initials = getInitials(p.authorName || '?');
-    var card = createPostCard(p.id, initials, p.authorName || '?', timeStr, p.text || '', p.imgSrc || null, p.authorEmail, p.likes || [], p.commentCount || 0);
+    var isSaved = savedIds.indexOf(p.id) > -1;
+    var card = createPostCard(p.id, initials, p.authorName || '?', timeStr, p.text || '', p.imgSrc || null, p.authorEmail, p.likes || [], p.commentCount || 0, isSaved);
     container.appendChild(card);
   });
 }
 
-function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail, likes, commentCount) {
+function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail, likes, commentCount, isSaved) {
   var liked = likes && likes.indexOf(user.email) > -1;
   var likeCount = likes ? likes.length : 0;
   var safeId = postId || '';
@@ -3039,8 +3044,9 @@ function createPostCard(postId, initials, name, time, text, imgSrc, authorEmail,
         '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
         'Comment' + (commentCount > 0 ? ' (' + commentCount + ')' : '') +
       '</button>' +
-      '<button class="post-action-btn" id="save-btn-' + safeId + '" onclick="savePostToSaved(\'' + safeId + '\',\'' + safeName + '\',\'' + safeText + '\',\'' + safeAuthor + '\',this)">' +
-        '<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Save' +
+      '<button class="post-action-btn' + (isSaved ? ' saved' : '') + '" id="save-btn-' + safeId + '" onclick="toggleSavePost(\'' + safeId + '\',\'' + safeName + '\',\'' + safeText + '\',\'' + safeAuthor + '\',this)">' +
+        '<svg viewBox="0 0 24 24" style="fill:' + (isSaved ? 'currentColor' : 'none') + '"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
+        (isSaved ? 'Saved ✓' : 'Save') +
       '</button>' +
     '</div>';
   return div;
@@ -3844,40 +3850,60 @@ function renderSaved() {
     '</div>';
 }
 
-function savePostToSaved(postId, from, text, authorEmail, btn) {
-  // Update button UI immediately
-  if (btn) {
-    btn.classList.add('saved');
-    var svg = btn.querySelector('svg');
-    if (svg) svg.style.fill = 'currentColor';
-    btn.innerHTML = btn.innerHTML.replace(/>Save</, '>Saved ✓<');
-    btn.onclick = function() { showToast('Already saved!'); };
-  }
+function toggleSavePost(postId, from, text, authorEmail, btn) {
+  if (!user.savedPostIds) user.savedPostIds = [];
+  var alreadySaved = user.savedPostIds.indexOf(postId) > -1;
+  var svg = btn ? btn.querySelector('svg') : null;
 
-  // Add to saved list in Saved tab
-  var list = document.getElementById('saved-list');
-  var empty = document.getElementById('saved-empty-state');
-  if (empty) empty.remove();
-  var item = document.createElement('div');
-  item.className = 'saved-item';
-  item.innerHTML =
-    '<div class="saved-from"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved from ' + from + '</div>' +
-    '<div class="saved-text">' + text + '</div>';
-  list.insertBefore(item, list.firstChild);
-  showToast('Post saved! 🔖');
+  if (alreadySaved) {
+    // UNSAVE
+    user.savedPostIds = user.savedPostIds.filter(function(id) { return id !== postId; });
+    if (btn) {
+      btn.classList.remove('saved');
+      if (svg) svg.style.fill = 'none';
+      btn.innerHTML = btn.innerHTML.replace(/>Saved ✓</, '>Save<');
+    }
+    // Remove from saved list UI
+    var savedList = document.getElementById('saved-list');
+    var items = savedList ? savedList.querySelectorAll('.saved-item[data-post-id="' + postId + '"]') : [];
+    items.forEach(function(el) { el.remove(); });
+    saveUserToFirebase(null);
+    showToast('Removed from saved');
+  } else {
+    // SAVE
+    user.savedPostIds.push(postId);
+    if (btn) {
+      btn.classList.add('saved');
+      if (svg) svg.style.fill = 'currentColor';
+      btn.innerHTML = btn.innerHTML.replace(/>Save</, '>Saved ✓<');
+    }
+    // Add to saved list UI
+    var list = document.getElementById('saved-list');
+    var empty = document.getElementById('saved-empty-state');
+    if (empty) empty.remove();
+    var item = document.createElement('div');
+    item.className = 'saved-item';
+    item.setAttribute('data-post-id', postId);
+    item.innerHTML =
+      '<div class="saved-from"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved from ' + from + '</div>' +
+      '<div class="saved-text">' + text + '</div>';
+    if (list) list.insertBefore(item, list.firstChild);
+    saveUserToFirebase(null);
+    showToast('Post saved! 🔖');
 
-  // Send notification to post author (not yourself)
-  if (authorEmail && authorEmail !== user.email && fbConfigured && db) {
-    sendNotification(authorEmail, {
-      type: 'save',
-      fromEmail: user.email,
-      fromName: user.name,
-      fromUsername: user.username || '',
-      postId: postId || '',
-      text: (text || '').substring(0, 60),
-      ts: Date.now(),
-      read: false
-    });
+    // Send notification to post author
+    if (authorEmail && authorEmail !== user.email && fbConfigured && db) {
+      sendNotification(authorEmail, {
+        type: 'save',
+        fromEmail: user.email,
+        fromName: user.name,
+        fromUsername: user.username || '',
+        postId: postId || '',
+        text: (text || '').substring(0, 60),
+        ts: Date.now(),
+        read: false
+      });
+    }
   }
 }
 
