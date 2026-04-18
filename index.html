@@ -2084,9 +2084,15 @@
       <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.45);border:none;color:#fff;border-radius:50px;padding:8px 16px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);flex-shrink:0">
         <span id="sv-like-icon">🤍</span><span id="sv-like-count">0</span>
       </button>
+    <div id="sv-actions" style="position:absolute;bottom:16px;left:0;right:0;display:flex;align-items:center;gap:8px;padding:0 14px;z-index:10">
+      <button id="sv-like-btn" onclick="likeStory()" style="background:rgba(0,0,0,0.45);border:none;color:#fff;border-radius:50px;padding:8px 16px;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(4px);flex-shrink:0">
+        <span id="sv-like-icon">🤍</span><span id="sv-like-count">0</span>
+      </button>
       <div style="flex:1;display:flex;align-items:center;background:rgba(0,0,0,0.45);border-radius:50px;padding:6px 14px;backdrop-filter:blur(4px)">
         <input id="sv-comment-input" type="text" placeholder="Comment…" maxlength="200"
           style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:13px;font-family:'DM Sans',sans-serif"
+          onfocus="pauseStoryTimer()"
+          onblur="resumeStoryTimer()"
           onkeydown="storyCommentKeydown(event)">
         <button onclick="submitStoryComment()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:18px;padding:0 0 0 8px">➤</button>
       </div>
@@ -3002,6 +3008,9 @@ function viewStory(index) {
   document.getElementById('sv-like-count').textContent = likes.length;
   document.getElementById('sv-comment-input').value = '';
   document.getElementById('sv-actions').style.display = 'flex';
+  storyPaused = false;
+  storyTimeRemaining = 7000;
+  storyStartTime = Date.now();
 
   viewer.style.display = 'flex';
   progress.style.transition = 'none';
@@ -3034,6 +3043,41 @@ function likeStory() {
   if (!liked) showToast('❤️ Liked!');
 }
 
+var storyPaused = false;
+var storyTimeRemaining = 7000;
+var storyStartTime = null;
+
+function pauseStoryTimer() {
+  if (storyPaused) return;
+  storyPaused = true;
+  clearTimeout(storyTimer);
+  var elapsed = Date.now() - storyStartTime;
+  storyTimeRemaining = Math.max(0, storyTimeRemaining - elapsed);
+  // Pause the progress bar
+  var progress = document.getElementById('sv-progress');
+  if (progress) {
+    var computed = window.getComputedStyle(progress).width;
+    var barWidth = document.getElementById('sv-progress').parentElement.offsetWidth;
+    progress.style.transition = 'none';
+    progress.style.width = computed;
+  }
+}
+
+function resumeStoryTimer() {
+  if (!storyPaused) return;
+  storyPaused = false;
+  storyStartTime = Date.now();
+  // Resume progress bar
+  var progress = document.getElementById('sv-progress');
+  if (progress) {
+    setTimeout(function() {
+      progress.style.transition = 'width ' + (storyTimeRemaining / 1000) + 's linear';
+      progress.style.width = '100%';
+    }, 30);
+  }
+  storyTimer = setTimeout(closeStory, storyTimeRemaining);
+}
+
 function storyCommentKeydown(e) {
   if (e.key === 'Enter') { e.preventDefault(); submitStoryComment(); }
 }
@@ -3045,7 +3089,10 @@ function submitStoryComment() {
   var text = input.value.trim();
   if (!text) return;
   input.value = '';
+  input.blur(); // resume timer after sending
+
   if (!fbConfigured || !db || !s.id) { showToast('Could not post comment.'); return; }
+
   db.collection('stories').doc(s.id).collection('comments').add({
     authorEmail: user.email,
     authorName: user.name,
@@ -3064,7 +3111,7 @@ function submitStoryComment() {
         read: false
       });
     }
-  }).catch(function() { showToast('Could not post comment.'); });
+  }).catch(function(err) { console.error('story comment error', err); showToast('Could not post comment.'); });
 }
 
 function closeStory() {
